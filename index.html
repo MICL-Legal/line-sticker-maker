@@ -393,11 +393,32 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   // ---- 裁 LINE 規格 + 打包 ----
+  // 找出「不透明內容」的邊界框：模型常在主體周圍留一大片空白，
+  // 不先裁掉就縮放，主體會只占畫布一小角，貼在聊天室看不清（2026-09-19 實測）。
+  function contentBox(src) {
+    const w = src.width, h = src.height, full = { x: 0, y: 0, w: w, h: h };
+    let d;
+    try { d = src.getContext('2d').getImageData(0, 0, w, h).data; } catch (e) { return full; }
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        if (d[(row + x) * 4 + 3] > 8) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0 || x1 - x0 < 2 || y1 - y0 < 2) return full;   // 全透明或幾乎空 -> 不裁
+    return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  }
+
   function fitToLine(src, W, H) {
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
-    const m = Math.round(Math.min(W, H) * 0.06), s = Math.min((W - 2 * m) / src.width, (H - 2 * m) / src.height);
-    const dw = Math.round(src.width * s), dh = Math.round(src.height * s);
-    ctx.drawImage(src, Math.round((W - dw) / 2), Math.round((H - dh) / 2), dw, dh); return cv;
+    const b = contentBox(src);
+    const m = Math.round(Math.min(W, H) * 0.06), s = Math.min((W - 2 * m) / b.w, (H - 2 * m) / b.h);
+    const dw = Math.round(b.w * s), dh = Math.round(b.h * s);
+    ctx.drawImage(src, b.x, b.y, b.w, b.h, Math.round((W - dw) / 2), Math.round((H - dh) / 2), dw, dh); return cv;
   }
   // 單檔上限 1MB：超過就逐步縮小重壓，回傳 {blob, w, h, tries}
   async function toBlobCapped(cv) {
