@@ -274,7 +274,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const VALID_COUNTS = [16];
   const GRID = 4, SHEET_CELL = 512, SHEET_SIZE = GRID * SHEET_CELL;
   const MAX_BYTES = 1024 * 1024;
-  const TXT_MODEL = 'gemini-2.5-flash';
+  const TXT_MODEL = 'gemini-3.6-flash';
   const imgModel = () => ($('imgModel') && $('imgModel').value) || 'gemini-3.1-flash-image';
   const API = m => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(getKey());
 
