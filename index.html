@@ -92,6 +92,14 @@
 
   <!-- 主輸入 -->
   <div class="card">
+    <label>🎯 你想參考的類型／風格（選填）</label>
+    <textarea id="refType" class="big-input" style="min-height:72px" placeholder="例如：療癒系手繪童書感、柔和暖色、圓潤角色、表情誇張一點，適合日常聊天；不要複製任何現成角色"></textarea>
+    <div class="row" style="margin-top:8px;align-items:center">
+      <button class="btn pri mini" id="makePrompt" type="button" style="flex:0">✨ AI 幫我整理成 Prompt</button>
+      <div class="status" id="promptStatus" style="margin:0"></div>
+    </div>
+    <p class="hint" style="margin-top:6px">你可以寫風格、色彩、畫面感、參考類型或想模仿的氣氛；AI 會轉成原創、可直接生圖的描述。</p>
+
     <label>✏️ 描述你想要的貼圖（越自由越好）</label>
     <textarea id="desc" class="big-input" placeholder="例如：我家的柴犬 Mochi，米色短毛、療癒風，做一組聊天常用的可愛貼圖，要有各種心情"></textarea>
 
@@ -134,12 +142,13 @@
     </details>
 
     <details style="margin-top:10px">
-      <summary>🔑 設定你的免費 Google 金鑰（生成需要）</summary>
+      <summary>🔑 設定你的 Google 金鑰（生成需要）</summary>
       <div class="inner">
-        <div class="warnbox">用你自己的金鑰＝免費、無限次、不排隊。到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> 免費申請（免綁卡），貼下面存起來。</div>
+        <div class="warnbox">金鑰會自動保存於這個網站的瀏覽器儲存空間，重新整理不會消失。只有清除網站資料、使用私密瀏覽，或換瀏覽器／裝置時才需要重新輸入。到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 管理金鑰。</div>
         <div class="row" style="margin-top:10px;align-items:flex-end">
           <div style="flex:3"><input id="apiKey" type="password" placeholder="貼上金鑰 AIza..." autocomplete="off"></div>
           <button class="btn pri mini" id="saveKey" type="button" style="flex:0">儲存</button>
+          <button class="btn ghost mini" id="clearKey" type="button" style="flex:0">清除</button>
         </div>
         <div class="status" id="keyStatus"></div>
       </div>
@@ -231,15 +240,40 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2600); };
   const setSt = (el, msg, cls) => { el.className = 'status' + (cls ? ' ' + cls : ''); el.textContent = msg; };
-  const getKey = () => ($('apiKey').value.trim()) || localStorage.getItem(KEY_LS) || '';
+  function readStoredKey() {
+    try { return localStorage.getItem(KEY_LS) || ''; } catch (_) { return ''; }
+  }
+  function storeKey(k) {
+    try {
+      localStorage.setItem(KEY_LS, k);
+      return localStorage.getItem(KEY_LS) === k;
+    } catch (_) { return false; }
+  }
+  function deleteStoredKey() {
+    try { localStorage.removeItem(KEY_LS); return true; } catch (_) { return false; }
+  }
+  const getKey = () => ($('apiKey').value.trim()) || readStoredKey();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const toBlob = cv => new Promise(res => cv.toBlob(res, 'image/png'));
 
   // ---- 金鑰 ----
-  (function () { const k = localStorage.getItem(KEY_LS); if (k) { $('apiKey').value = k; setSt($('keyStatus'), '✅ 已載入', 'ok'); } })();
+  (function () { const k = readStoredKey(); if (k) { $('apiKey').value = k; setSt($('keyStatus'), '✅ 已載入（這個瀏覽器）', 'ok'); } })();
+  $('apiKey').addEventListener('input', () => {
+    const k = $('apiKey').value.trim();
+    if (!k) return;
+    const saved = storeKey(k);
+    setSt($('keyStatus'), saved ? '✅ 已自動保存（這個瀏覽器）' : '⚠️ 瀏覽器禁止保存網站資料', saved ? 'ok' : 'err');
+  });
   $('saveKey').addEventListener('click', () => {
     const k = $('apiKey').value.trim(); if (!k) { setSt($('keyStatus'), '⚠️ 請貼上金鑰', 'err'); return; }
-    localStorage.setItem(KEY_LS, k); setSt($('keyStatus'), '✅ 已儲存（只在你的瀏覽器）', 'ok'); toast('🔑 已儲存');
+    const saved = storeKey(k);
+    setSt($('keyStatus'), saved ? '✅ 已儲存，重新整理仍會保留' : '⚠️ 瀏覽器禁止保存網站資料', saved ? 'ok' : 'err');
+    if (saved) toast('🔑 已保存');
+  });
+  $('clearKey').addEventListener('click', () => {
+    const cleared = deleteStoredKey();
+    $('apiKey').value = '';
+    setSt($('keyStatus'), cleared ? '✅ 已清除本機保存的金鑰' : '⚠️ 無法清除瀏覽器資料', cleared ? 'ok' : 'err');
   });
 
   // ---- 參考圖（選填）----
@@ -268,9 +302,50 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   function refPart() { return refDataUrl ? [{ inlineData: { mimeType: refMime || 'image/png', data: refDataUrl.split(',')[1] } }] : []; }
 
+  // ---- 參考類型 → 完整 Prompt（AI，可編輯） ----
+  async function makePrompt() {
+    if (!getKey()) { setSt($('promptStatus'), '⚠️ 請先在「設定金鑰」填入 Google 金鑰', 'err'); return; }
+    const ref = $('refType').value.trim();
+    const existing = $('desc').value.trim();
+    if (!ref && !existing) {
+      setSt($('promptStatus'), '⚠️ 請先輸入參考類型，或先寫一點貼圖描述', 'err');
+      return;
+    }
+    setSt($('promptStatus'), '💡 AI 正在整理 Prompt…', 'busy');
+    const prompt = `你是專業的 LINE 靜態貼圖 Prompt 設計師。請把使用者提供的參考方向整理成一段「可以直接交給影像生成模型」的繁體中文 Prompt。
+
+參考類型／風格：
+${ref || '（未提供，請依既有描述發展合適風格）'}
+
+既有貼圖描述（如果有，請保留其中的角色、主題與用途）：
+${existing || '（未提供，請從參考方向建立一個原創貼圖主題）'}
+
+請遵守：
+1. 只輸出一段完整 Prompt，不要解釋、不要加標題、不要加 Markdown。
+2. 使用繁體中文，內容要具體但保留創作彈性。
+3. 明確寫出原創角色、視覺風格、色彩、線條、質感、角色比例、構圖、情緒與日常聊天貼圖用途。
+4. 必須適合 LINE 靜態貼圖：單一角色、完整入鏡、不被裁切、背景乾淨、方便去背。
+5. 如果參考內容提到現成角色、品牌、Logo 或特定藝術家，請轉換成一般性的視覺特徵，不要複製其角色、商標或獨特簽名風格。
+6. 不要自行發明貼圖台詞；台詞會在下一步逐張規劃。
+`;
+    try {
+      const parts = await callGemini(TXT_MODEL, [{ text: prompt }], false);
+      const txt = parts.map(p => p.text || '').join('\n').trim();
+      if (!txt) throw new Error('AI 沒有返回 Prompt');
+      $('desc').value = txt;
+      setSt($('promptStatus'), '✅ Prompt 已生成並填入下方描述欄位，可再修改', 'ok');
+      $('desc').focus();
+      $('desc').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (e) {
+      setSt($('promptStatus'), '❌ Prompt 產生失敗：' + e.message, 'err');
+    }
+  }
+
+  $('makePrompt').addEventListener('click', makePrompt);
+
   // ---- 生成點子（AI，可編輯）----
   async function generateIdeas() {
-    if (!getKey()) { setSt($('mainStatus'), '⚠️ 請先在「設定金鑰」填入免費金鑰', 'err'); return false; }
+    if (!getKey()) { setSt($('mainStatus'), '⚠️ 請先在「設定金鑰」填入 Google 金鑰', 'err'); return false; }
     const desc = $('desc').value.trim(); if (!desc) { setSt($('mainStatus'), '⚠️ 請先描述你想要的貼圖', 'err'); return false; }
     const n = +$('count').value;
     setSt($('mainStatus'), '💡 AI 正在想點子…', 'busy');

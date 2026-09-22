@@ -2,13 +2,15 @@
 
 免安裝、免後端、免註冊的 LINE 靜態貼圖產線。打開網頁就能用，圖片與金鑰只留在你自己的瀏覽器。
 
+可以先輸入想參考的類型／風格，按「AI 幫我整理成 Prompt」；AI 會把風格、色彩、畫面感與既有描述整理成一段可直接生圖的 Prompt，自動填入下方描述欄位。Prompt 仍可手動修改，再開始生成。
+
 **線上使用：** https://micl-legal.github.io/line-sticker-maker/
 
 ## 兩條路徑
 
 | 路徑 | 適合誰 | 需要金鑰嗎 |
 |---|---|---|
-| [製造機 `index.html`](https://micl-legal.github.io/line-sticker-maker/) | 只有一個想法或一張角色照 | 要（自己的 Google AI Studio 金鑰，免費可申請） |
+| [製造機 `index.html`](https://micl-legal.github.io/line-sticker-maker/) | 只有一個想法或一張角色照 | 要（自己的 Google AI Studio 金鑰；生圖模型依 Google 方案計費） |
 | [切割器 `cutter.html`](https://micl-legal.github.io/line-sticker-maker/cutter.html) | 已在 ChatGPT / Gemini 生好一張總圖 | 不要，純本機 |
 
 兩條路徑最後都輸出**同一份可直接上架的 ZIP**。
@@ -32,7 +34,7 @@ ZIP 內另附 `上架檢查清單.txt`，分「程式已保證」與「你要自
 2. 建立 API key，複製 `AIza...`
 3. 貼進製造機的「設定金鑰」，按儲存（存在你瀏覽器的 localStorage，不會傳給任何人）
 
-金鑰直接從瀏覽器送到 Google，不經過任何中間伺服器；本站是純靜態頁面，沒有後端。
+金鑰直接從瀏覽器送到 Google，不經過任何中間伺服器；本站是純靜態頁面，沒有後端。按下儲存或貼上 key 後，金鑰會保存於目前網站來源的瀏覽器 `localStorage`，重新整理同一網址不會消失；清除網站資料、私密瀏覽、換瀏覽器或換裝置時需要重新輸入。
 
 ## 生圖模型
 
