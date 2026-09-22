@@ -159,7 +159,8 @@
         <div class="row">
           <div><label>張數（固定 4×4）</label><select id="count"><option selected value="16">16 張</option></select></div>
           <div><label>風格</label><select id="style">
-            <option value="沿用參考圖畫風，不要擅自更改">跟參考圖一致</option>
+            <option value="可愛療癒 Q 版 chibi，圓潤比例，柔和色彩">可愛療癒 Q 版（推薦）</option>
+            <option value="沿用參考圖畫風，但加強可愛、圓潤與親和感">跟參考圖一致＋可愛化</option>
             <option value="可愛精緻 Q 版 chibi">Q 版可愛</option>
             <option value="日系動漫">日系動漫</option>
             <option value="3D 立體公仔">3D 公仔</option>
@@ -167,6 +168,31 @@
             <option value="簡約線條插畫">簡約線條</option>
           </select></div>
           <div><label>背景（好去背）</label><select id="bgChoice"><option value="green">綠幕</option><option value="white">白底</option></select></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><label>可愛度</label><select id="cuteLevel">
+            <option value="高可愛度">高可愛度（推薦）</option>
+            <option value="中高可愛度">中高可愛度</option>
+            <option value="自然可愛">自然可愛</option>
+          </select></div>
+          <div><label>角色身形</label><select id="characterProportion">
+            <option value="大頭短身、圓滾滾、幼齡感但不失角色辨識度">大頭短身（推薦）</option>
+            <option value="圓潤 Q 版，頭身比約 1:1.5">圓潤 Q 版</option>
+            <option value="保留參考圖比例，但讓輪廓更柔和親切">保留原比例</option>
+          </select></div>
+          <div><label>表情動作</label><select id="expressionLevel">
+            <option value="表情誇張、眼睛明亮、動作活潑、情緒一眼就懂">活潑誇張（推薦）</option>
+            <option value="表情清楚、動作自然、帶一點撒嬌感">自然撒嬌</option>
+            <option value="表情細膩、動作簡單、療癒安靜">溫柔療癒</option>
+          </select></div>
+        </div>
+        <div style="margin-top:10px">
+          <label>可愛化補充要求（選填）</label>
+          <textarea id="cuteNotes" placeholder="例如：圓圓的大眼睛、臉頰淡淡腮紅、短短手腳、柔軟毛茸茸質感、像玩偶一樣討喜；每張貼圖要有明確情緒和可愛姿勢"></textarea>
+        </div>
+        <div style="margin-top:10px">
+          <label>避免出現（負面提示，選填）</label>
+          <textarea id="negativePrompt" placeholder="例如：避免寫實人像、恐怖、陰暗、尖銳線條、僵硬表情、複雜背景、四肢變形、裁切角色、圖片內亂碼文字"></textarea>
         </div>
         <div class="row" style="margin-top:10px">
           <div><label>生圖模型</label><select id="imgModel">
@@ -459,6 +485,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       refType: $('refType').value,
       desc: $('desc').value,
       style: $('style').value,
+      cuteLevel: $('cuteLevel').value,
+      characterProportion: $('characterProportion').value,
+      expressionLevel: $('expressionLevel').value,
+      cuteNotes: $('cuteNotes').value,
+      negativePrompt: $('negativePrompt').value,
       bgChoice: $('bgChoice').value,
       bgMode: $('bgMode').value,
       tol: $('tol').value,
@@ -505,6 +536,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     $('projectName').value = record.name || '未命名角色專案';
     $('refType').value = record.refType || ''; $('desc').value = record.desc || '';
     if (record.style) $('style').value = record.style;
+    if (record.cuteLevel) $('cuteLevel').value = record.cuteLevel;
+    if (record.characterProportion) $('characterProportion').value = record.characterProportion;
+    if (record.expressionLevel) $('expressionLevel').value = record.expressionLevel;
+    $('cuteNotes').value = record.cuteNotes || '';
+    $('negativePrompt').value = record.negativePrompt || '';
     if (record.bgChoice) $('bgChoice').value = record.bgChoice;
     if (record.bgMode) $('bgMode').value = record.bgMode;
     if (record.tol) { $('tol').value = record.tol; $('tolVal').textContent = record.tol; }
@@ -538,7 +574,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function clearWorkingState() {
     refDataUrl = null; refMime = null; ideas = []; stickers = []; cutStickers = []; promptHistory = [];
     $('refType').value = ''; $('desc').value = ''; $('refFile').value = ''; $('refPrev').src = ''; $('refPrev').classList.add('hidden');
-    $('style').selectedIndex = 0; $('bgChoice').selectedIndex = 0; $('bgMode').value = 'green'; $('tol').value = 40; $('tolVal').textContent = '40'; $('imgModel').selectedIndex = 0; $('imgProvider').value = 'auto';
+    $('style').selectedIndex = 0; $('cuteLevel').selectedIndex = 0; $('characterProportion').selectedIndex = 0; $('expressionLevel').selectedIndex = 0; $('cuteNotes').value = ''; $('negativePrompt').value = ''; $('bgChoice').selectedIndex = 0; $('bgMode').value = 'green'; $('tol').value = 40; $('tolVal').textContent = '40'; $('imgModel').selectedIndex = 0; $('imgProvider').value = 'auto';
     $('ideas').innerHTML = ''; $('results').innerHTML = ''; $('cutPreview').innerHTML = '';
     ['ideaCard', 'resultCard', 'sheetCard', 'packCard'].forEach(id => $(id).classList.add('hidden'));
     renderProjectMeta(); updateCount();
@@ -569,7 +605,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       await refreshProjectList(); setProjectStatus('✅ 專案已刪除', 'ok');
     } catch (e) { setProjectStatus('❌ 刪除失敗：' + e.message, 'err'); }
   });
-  ['projectName', 'refType', 'desc', 'style', 'bgChoice', 'bgMode', 'tol', 'imgModel', 'imgProvider'].forEach(id => {
+  ['projectName', 'refType', 'desc', 'style', 'cuteLevel', 'characterProportion', 'expressionLevel', 'cuteNotes', 'negativePrompt', 'bgChoice', 'bgMode', 'tol', 'imgModel', 'imgProvider'].forEach(id => {
     $(id).addEventListener('input', scheduleProjectSave);
     $(id).addEventListener('change', scheduleProjectSave);
   });
@@ -671,6 +707,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (!getKey()) { setSt($('promptStatus'), '⚠️ 請先在「設定金鑰」填入 Google 金鑰', 'err'); return; }
     const ref = $('refType').value.trim();
     const existing = $('desc').value.trim();
+    const cuteDirection = `可愛化設定：${$('cuteLevel').value}；${$('characterProportion').value}；${$('expressionLevel').value}。${$('cuteNotes').value.trim() || '請讓角色像討喜的療癒玩偶，輪廓圓潤、表情明亮、姿勢有親和力。'}`;
     if (!ref && !existing && !refDataUrl) {
       setSt($('promptStatus'), '⚠️ 請先上傳參考圖，或輸入一點貼圖描述', 'err');
       return;
@@ -683,13 +720,15 @@ ${refDataUrl ? '我有附上一張參考圖片。請先分析圖片中的角色�
 貼圖主題／風格／文字語氣：
 ${ref || '（未提供，請依既有描述發展合適風格）'}
 
+${cuteDirection}
+
 既有貼圖描述（如果有，請保留其中的角色、主題與用途）：
 ${existing || '（未提供，請從參考方向建立一個原創貼圖主題）'}
 
 請遵守：
 1. 只輸出一段完整 Prompt，不要解釋、不要加標題、不要加 Markdown。
 2. 使用繁體中文，內容要具體但保留創作彈性。
-3. 明確寫出原創角色、視覺風格、色彩、線條、質感、角色比例、構圖、情緒與日常聊天貼圖用途。
+3. 明確寫出原創角色、視覺風格、色彩、線條、質感、角色比例、構圖、情緒與日常聊天貼圖用途，並優先呈現可愛、討喜、療癒的視覺結果。
 4. 清楚整理貼圖主題、使用情境、目標受眾、文字語氣、台詞長度與用字規則；不要列出具體的 16 句台詞。
 5. 必須適合 LINE 靜態貼圖：單一角色、完整入鏡、不被裁切、背景乾淨、方便去背。
 6. 如果參考內容提到現成角色、品牌、Logo 或特定藝術家，請轉換成一般性的視覺特徵，不要複製其角色、商標或獨特簽名風格。
@@ -726,6 +765,8 @@ ${desc}
 
 使用者補充的貼圖主題／風格／文字語氣：
 ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天台詞）'}
+
+可愛化要求：${$('cuteLevel').value}；${$('characterProportion').value}；${$('expressionLevel').value}。${$('cuteNotes').value.trim() || '每張都要有清楚、討喜、容易一眼看懂的表情和動作。'}
 
 請列出 ${n} 組實用又多元的貼圖內容，涵蓋問候、回覆、情緒、感謝、拒絕、加油或符合主題的常用情境。
 每行必須嚴格使用格式：「台詞｜動作」。台詞使用繁體中文、約 2~12 字；動作用 3~12 字描述角色表情或動作；「｜」只能作為分隔符號，不要在台詞內使用。
@@ -768,11 +809,18 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
   }
   function stickerPrompt(idea) {
     const style = $('style').value, bgWord = $('bgChoice').value === 'green' ? '純綠幕（chroma green #00b140）' : '純白色';
+    const cuteLevel = $('cuteLevel').value;
+    const characterProportion = $('characterProportion').value;
+    const expressionLevel = $('expressionLevel').value;
+    const cuteNotes = $('cuteNotes').value.trim() || '圓潤輪廓、明亮眼神、柔和色彩、討喜表情、像療癒玩偶一樣親切可愛';
+    const negativePrompt = $('negativePrompt').value.trim() || '避免寫實人像、恐怖陰暗、尖銳線條、僵硬表情、複雜背景、四肢變形、角色被裁切、圖片內亂碼文字';
     const base = refDataUrl ? '以我提供的參考圖分析出的角色視覺特徵為參考，維持角色一致但必須是原創，不複製第三方角色、Logo 或商標，' : '';
     const parsed = parseIdea(idea);
     const textRule = parsed.text ? `這張貼圖的精確台詞是「${parsed.text}」，請不要在圖片內自行繪製任何文字，台詞會由系統後製。` : '這張貼圖不放台詞，請不要在圖片內繪製文字。';
     return `${base}為「${$('desc').value.trim()}」這組 LINE 貼圖畫其中一張。這張的表情/動作：「${parsed.action}」。${textRule}`
-      + `風格：${style}。${bgWord}背景、畫面無邊框、只畫單一角色單一表情、角色置中且完整不被裁切，適合當聊天貼圖。輸出單一張正方形圖片。`;
+      + `風格：${style}。可愛度：${cuteLevel}。角色身形：${characterProportion}。表情與動作：${expressionLevel}。可愛化細節：${cuteNotes}。`
+      + `請把可愛和討喜放在第一優先：輪廓要圓潤乾淨、眼神明亮、表情清楚、動作有生命力，讓人看到就想使用。${bgWord}背景、畫面無邊框、只畫單一角色單一表情、角色置中且完整不被裁切，適合當聊天貼圖。`
+      + `避免：${negativePrompt}。輸出單一張正方形圖片。`;
   }
   function imageProviderOrder() {
     const choice = $('imgProvider').value;
