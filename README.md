@@ -57,7 +57,7 @@ ZIP 內另附 `上架檢查清單.txt`，分「程式已保證」與「你要自
 | `gemini-3-pro-image` | 複雜中文排版或多主體時 |
 | `gemini-2.5-flash-image` | 最省，但中文字會糊，只適合純表情無字 |
 
-Prompt 分析與貼圖點子規劃使用 `gemini-3.6-flash`；參考圖會作為圖片輸入交給此模型分析。
+Prompt 分析與貼圖點子規劃優先使用 `gemini-3.6-flash`；若遇到暫時性高流量，程式會自動重試並依序切換 `gemini-3.7-flash`、`gemini-3.5-flash-lite`。參考圖會作為圖片輸入交給文字模型分析。
 
 ## 隱私
 
