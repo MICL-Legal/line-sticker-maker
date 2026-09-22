@@ -55,6 +55,12 @@
   .idea input{flex:1;}
   .idea .h{font-family:var(--mono);color:#a29ab8;font-size:12px;width:26px;flex:0 0 auto;text-align:right;}
   .grip{cursor:grab;color:#c3bcd6;flex:0 0 auto;}
+  .provider-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;}
+  .provider-box{background:#fff;border:1px solid var(--line);border-radius:13px;padding:11px;min-width:0;}
+  .provider-box h3{font-size:13px;margin:0 0 7px;color:#5a5470;}
+  .provider-box input{margin:4px 0;font-size:12px;}
+  .cf-key-row{display:grid;grid-template-columns:1.4fr 1fr;gap:5px;}
+  @media(max-width:760px){.provider-grid{grid-template-columns:1fr;}}
   /* results */
   .results{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
   @media(max-width:760px){.results{grid-template-columns:repeat(3,1fr);}}
@@ -169,18 +175,46 @@
             <option value="gemini-2.5-flash-image">2.5 Flash（最省・中文字會糊，純表情用）</option>
           </select><p class="hint">2026-09-19 實測：3.1 Flash 已能正確渲染繁體中文，無須為了文字硬上 Pro。</p>
           <div class="warnbox" style="margin-top:8px">⚠️ 圖像模型可能需要 Google AI Studio 付費層級。若錯誤顯示 <code>free_tier</code> 或 <code>limit: 0</code>，請在這把 API Key 所屬的專案設定 Billing；單純重試不會增加配額。</div></div>
+          <div><label>生圖服務商優先順序</label><select id="imgProvider">
+            <option value="auto">Google → Hugging Face → Cloudflare</option>
+            <option value="google">只用 Google</option>
+            <option value="huggingface">Hugging Face → Cloudflare → Google</option>
+            <option value="cloudflare">Cloudflare → Hugging Face → Google</option>
+          </select><p class="hint">前面的服務商失敗時，會自動換下一個已填寫的服務商。</p></div>
         </div>
       </div>
     </details>
 
     <details style="margin-top:10px">
-      <summary>🔑 設定你的 Google 金鑰（生成需要）</summary>
+      <summary>🔑 設定 AI 服務商金鑰（生成需要）</summary>
       <div class="inner">
-        <div class="warnbox">金鑰會自動保存於這個網站的瀏覽器儲存空間，重新整理不會消失。只有清除網站資料、使用私密瀏覽，或換瀏覽器／裝置時才需要重新輸入。到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 管理金鑰。</div>
-        <div class="row" style="margin-top:10px;align-items:flex-end">
-          <div style="flex:3"><input id="apiKey" type="password" placeholder="貼上金鑰 AIza..." autocomplete="off"></div>
-          <button class="btn pri mini" id="saveKey" type="button" style="flex:0">儲存</button>
-          <button class="btn ghost mini" id="clearKey" type="button" style="flex:0">清除</button>
+        <div class="warnbox">以下金鑰只保存於目前瀏覽器，不會送到本站伺服器。請只放你自己的 Key／Token；公開網站上的前端金鑰仍可能被瀏覽器使用者看見。Google、Hugging Face、Cloudflare 的配額與模型不同，系統會依優先順序自動備援。到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 管理 Google Key。</div>
+        <div class="provider-grid">
+          <div class="provider-box">
+            <h3>🔵 Google Gemini API Key</h3>
+            <input id="apiKey" type="password" placeholder="Google Key 1：AIza..." autocomplete="off">
+            <input id="googleKey2" type="password" placeholder="Google Key 2（選填）" autocomplete="off">
+            <input id="googleKey3" type="password" placeholder="Google Key 3（選填）" autocomplete="off">
+            <p class="hint">用於 Prompt、台詞與 Gemini 生圖。</p>
+          </div>
+          <div class="provider-box">
+            <h3>🤗 Hugging Face Token</h3>
+            <input id="hfKey1" type="password" placeholder="HF Token 1：hf_..." autocomplete="off">
+            <input id="hfKey2" type="password" placeholder="HF Token 2（選填）" autocomplete="off">
+            <input id="hfKey3" type="password" placeholder="HF Token 3（選填）" autocomplete="off">
+            <p class="hint">使用 Inference Providers 圖像模型；有參考圖時會嘗試 image-to-image。</p>
+          </div>
+          <div class="provider-box">
+            <h3>☁️ Cloudflare Workers AI</h3>
+            <div class="cf-key-row"><input id="cfKey1" type="password" placeholder="Token 1" autocomplete="off"><input id="cfAccount1" type="text" placeholder="Account ID" autocomplete="off"></div>
+            <div class="cf-key-row"><input id="cfKey2" type="password" placeholder="Token 2（選填）" autocomplete="off"><input id="cfAccount2" type="text" placeholder="Account ID" autocomplete="off"></div>
+            <div class="cf-key-row"><input id="cfKey3" type="password" placeholder="Token 3（選填）" autocomplete="off"><input id="cfAccount3" type="text" placeholder="Account ID" autocomplete="off"></div>
+            <p class="hint">每組 Token 要配對同一個 Account ID；使用 FLUX.1 Schnell 文字生圖。</p>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;align-items:center">
+          <button class="btn pri mini" id="saveKeys" type="button" style="flex:0">儲存所有 Key</button>
+          <button class="btn ghost mini" id="clearKeys" type="button" style="flex:0">清除所有 Key</button>
         </div>
         <div class="status" id="keyStatus"></div>
       </div>
@@ -272,6 +306,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 (function () {
   const $ = id => document.getElementById(id);
   const KEY_LS = 'line_maker_gemini_key';
+  const KEY_POOL_LS = 'line_maker_api_key_pools_v1';
   const GREEN = [0, 177, 64], WHITE = [255, 255, 255];
   const VALID_COUNTS = [16];
   const GRID = 4, SHEET_CELL = 512, SHEET_SIZE = GRID * SHEET_CELL;
@@ -279,7 +314,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const TXT_MODEL = 'gemini-3.6-flash';
   const TXT_MODELS = [TXT_MODEL, 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
   const imgModel = () => ($('imgModel') && $('imgModel').value) || 'gemini-3.1-flash-image';
-  const API = m => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(getKey());
+  const API = (m, key) => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(key || getKey());
+  const HF_IMAGE_MODEL = 'black-forest-labs/FLUX.2-klein-9B';
+  const HF_TEXT_IMAGE_MODEL = 'black-forest-labs/FLUX.1-schnell';
+  const CF_IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
   let refDataUrl = null, refMime = null;
   let ideas = [];
@@ -288,19 +326,55 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2600); };
   const setSt = (el, msg, cls) => { el.className = 'status' + (cls ? ' ' + cls : ''); el.textContent = msg; };
-  function readStoredKey() {
-    try { return localStorage.getItem(KEY_LS) || ''; } catch (_) { return ''; }
+  const uniqueNonEmpty = xs => Array.from(new Set(xs.map(x => String(x || '').trim()).filter(Boolean)));
+  function emptyKeyPools() {
+    return { google: ['', '', ''], huggingface: ['', '', ''], cloudflare: [{ key: '', account: '' }, { key: '', account: '' }, { key: '', account: '' }] };
   }
-  function storeKey(k) {
+  function readStoredPools() {
     try {
-      localStorage.setItem(KEY_LS, k);
-      return localStorage.getItem(KEY_LS) === k;
+      const raw = localStorage.getItem(KEY_POOL_LS);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          google: Array.isArray(parsed.google) ? parsed.google.slice(0, 3).concat(['', '', '']).slice(0, 3) : ['', '', ''],
+          huggingface: Array.isArray(parsed.huggingface) ? parsed.huggingface.slice(0, 3).concat(['', '', '']).slice(0, 3) : ['', '', ''],
+          cloudflare: Array.isArray(parsed.cloudflare) ? parsed.cloudflare.slice(0, 3).map(x => ({ key: x && x.key || '', account: x && x.account || '' })).concat([{ key: '', account: '' }, { key: '', account: '' }, { key: '', account: '' }]).slice(0, 3) : emptyKeyPools().cloudflare
+        };
+      }
+      const legacy = localStorage.getItem(KEY_LS) || '';
+      const pools = emptyKeyPools(); if (legacy) pools.google[0] = legacy;
+      return pools;
+    } catch (_) { return emptyKeyPools(); }
+  }
+  function currentKeyPools() {
+    return {
+      google: ['apiKey', 'googleKey2', 'googleKey3'].map(id => $(id).value.trim()),
+      huggingface: ['hfKey1', 'hfKey2', 'hfKey3'].map(id => $(id).value.trim()),
+      cloudflare: [1, 2, 3].map(i => ({ key: $('cfKey' + i).value.trim(), account: $('cfAccount' + i).value.trim() }))
+    };
+  }
+  function storeKeyPools() {
+    try {
+      const pools = currentKeyPools();
+      localStorage.setItem(KEY_POOL_LS, JSON.stringify(pools));
+      localStorage.removeItem(KEY_LS);
+      return JSON.stringify(readStoredPools()) === JSON.stringify(pools);
     } catch (_) { return false; }
   }
-  function deleteStoredKey() {
-    try { localStorage.removeItem(KEY_LS); return true; } catch (_) { return false; }
+  function deleteKeyPools() {
+    try { localStorage.removeItem(KEY_POOL_LS); localStorage.removeItem(KEY_LS); return true; } catch (_) { return false; }
   }
-  const getKey = () => ($('apiKey').value.trim()) || readStoredKey();
+  function loadKeyPools() {
+    const pools = readStoredPools();
+    ['apiKey', 'googleKey2', 'googleKey3'].forEach((id, i) => $(id).value = pools.google[i] || '');
+    ['hfKey1', 'hfKey2', 'hfKey3'].forEach((id, i) => $(id).value = pools.huggingface[i] || '');
+    pools.cloudflare.forEach((item, i) => { const n = i + 1; $('cfKey' + n).value = item.key || ''; $('cfAccount' + n).value = item.account || ''; });
+    return pools;
+  }
+  function getGoogleKeys() { return uniqueNonEmpty(['apiKey', 'googleKey2', 'googleKey3'].map(id => $(id).value.trim())); }
+  function getHuggingFaceKeys() { return uniqueNonEmpty(['hfKey1', 'hfKey2', 'hfKey3'].map(id => $(id).value.trim())); }
+  function getCloudflareKeys() { return [1, 2, 3].map(i => ({ key: $('cfKey' + i).value.trim(), account: $('cfAccount' + i).value.trim() })).filter(x => x.key && x.account); }
+  const getKey = () => getGoogleKeys()[0] || '';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const toBlob = cv => new Promise(res => cv.toBlob(res, 'image/png'));
 
@@ -389,6 +463,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       bgMode: $('bgMode').value,
       tol: $('tol').value,
       imgModel: $('imgModel').value,
+      imgProvider: $('imgProvider').value,
       ideas: ideas.slice(),
       stickers: savedStickers,
       promptHistory: promptHistory.slice(-20),
@@ -434,6 +509,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (record.bgMode) $('bgMode').value = record.bgMode;
     if (record.tol) { $('tol').value = record.tol; $('tolVal').textContent = record.tol; }
     if (record.imgModel) $('imgModel').value = record.imgModel;
+    if (record.imgProvider) $('imgProvider').value = record.imgProvider;
     refDataUrl = record.refDataUrl || null; refMime = record.refMime || null;
     $('refFile').value = '';
     if (refDataUrl) { $('refPrev').src = refDataUrl; $('refPrev').classList.remove('hidden'); }
@@ -462,7 +538,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function clearWorkingState() {
     refDataUrl = null; refMime = null; ideas = []; stickers = []; cutStickers = []; promptHistory = [];
     $('refType').value = ''; $('desc').value = ''; $('refFile').value = ''; $('refPrev').src = ''; $('refPrev').classList.add('hidden');
-    $('style').selectedIndex = 0; $('bgChoice').selectedIndex = 0; $('bgMode').value = 'green'; $('tol').value = 40; $('tolVal').textContent = '40'; $('imgModel').selectedIndex = 0;
+    $('style').selectedIndex = 0; $('bgChoice').selectedIndex = 0; $('bgMode').value = 'green'; $('tol').value = 40; $('tolVal').textContent = '40'; $('imgModel').selectedIndex = 0; $('imgProvider').value = 'auto';
     $('ideas').innerHTML = ''; $('results').innerHTML = ''; $('cutPreview').innerHTML = '';
     ['ideaCard', 'resultCard', 'sheetCard', 'packCard'].forEach(id => $(id).classList.add('hidden'));
     renderProjectMeta(); updateCount();
@@ -493,29 +569,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       await refreshProjectList(); setProjectStatus('✅ 專案已刪除', 'ok');
     } catch (e) { setProjectStatus('❌ 刪除失敗：' + e.message, 'err'); }
   });
-  ['projectName', 'refType', 'desc', 'style', 'bgChoice', 'bgMode', 'tol', 'imgModel'].forEach(id => {
+  ['projectName', 'refType', 'desc', 'style', 'bgChoice', 'bgMode', 'tol', 'imgModel', 'imgProvider'].forEach(id => {
     $(id).addEventListener('input', scheduleProjectSave);
     $(id).addEventListener('change', scheduleProjectSave);
   });
 
-  // ---- 金鑰 ----
-  (function () { const k = readStoredKey(); if (k) { $('apiKey').value = k; setSt($('keyStatus'), '✅ 已載入（這個瀏覽器）', 'ok'); } })();
-  $('apiKey').addEventListener('input', () => {
-    const k = $('apiKey').value.trim();
-    if (!k) return;
-    const saved = storeKey(k);
-    setSt($('keyStatus'), saved ? '✅ 已自動保存（這個瀏覽器）' : '⚠️ 瀏覽器禁止保存網站資料', saved ? 'ok' : 'err');
+  // ---- 多服務商金鑰備援池 ----
+  loadKeyPools();
+  const keyInputIds = ['apiKey', 'googleKey2', 'googleKey3', 'hfKey1', 'hfKey2', 'hfKey3', 'cfKey1', 'cfKey2', 'cfKey3', 'cfAccount1', 'cfAccount2', 'cfAccount3'];
+  keyInputIds.forEach(id => $(id).addEventListener('input', () => {
+    const saved = storeKeyPools();
+    setSt($('keyStatus'), saved ? '✅ 已自動保存所有服務商 Key（這個瀏覽器）' : '⚠️ 瀏覽器禁止保存網站資料', saved ? 'ok' : 'err');
+  }));
+  $('saveKeys').addEventListener('click', () => {
+    const total = getGoogleKeys().length + getHuggingFaceKeys().length + getCloudflareKeys().length;
+    if (!total) { setSt($('keyStatus'), '⚠️ 請至少貼上一組 Google、Hugging Face 或 Cloudflare 憑證', 'err'); return; }
+    const saved = storeKeyPools();
+    setSt($('keyStatus'), saved ? '✅ 已儲存所有服務商 Key，重新整理仍會保留' : '⚠️ 瀏覽器禁止保存網站資料', saved ? 'ok' : 'err');
+    if (saved) toast('🔑 已保存 ' + total + ' 組服務商憑證');
   });
-  $('saveKey').addEventListener('click', () => {
-    const k = $('apiKey').value.trim(); if (!k) { setSt($('keyStatus'), '⚠️ 請貼上金鑰', 'err'); return; }
-    const saved = storeKey(k);
-    setSt($('keyStatus'), saved ? '✅ 已儲存，重新整理仍會保留' : '⚠️ 瀏覽器禁止保存網站資料', saved ? 'ok' : 'err');
-    if (saved) toast('🔑 已保存');
-  });
-  $('clearKey').addEventListener('click', () => {
-    const cleared = deleteStoredKey();
-    $('apiKey').value = '';
-    setSt($('keyStatus'), cleared ? '✅ 已清除本機保存的金鑰' : '⚠️ 無法清除瀏覽器資料', cleared ? 'ok' : 'err');
+  $('clearKeys').addEventListener('click', () => {
+    const cleared = deleteKeyPools();
+    keyInputIds.forEach(id => $(id).value = '');
+    setSt($('keyStatus'), cleared ? '✅ 已清除本機保存的所有服務商 Key' : '⚠️ 無法清除瀏覽器資料', cleared ? 'ok' : 'err');
   });
 
   // ---- 參考圖（選填）----
@@ -545,10 +621,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   });
 
   // ---- Gemini 呼叫 ----
-  async function callGemini(model, parts, imageOut) {
+  async function callGemini(model, parts, imageOut, keyOverride) {
     const body = { contents: [{ parts }] };
     if (imageOut) body.generationConfig = { responseModalities: ['IMAGE'] };
-    const resp = await fetch(API(model), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const resp = await fetch(API(model, keyOverride), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!resp.ok) {
       let m = 'HTTP ' + resp.status;
       try { const e = await resp.json(); m = (e.error && e.error.message) || m; } catch (_) {}
@@ -563,25 +639,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   async function callTextGemini(parts, onStatus) {
     let lastError = null;
-    for (let modelIndex = 0; modelIndex < TXT_MODELS.length; modelIndex++) {
-      const model = TXT_MODELS[modelIndex];
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try { return await callGemini(model, parts, false); }
-        catch (e) {
-          lastError = e;
-          if (e.modelUnavailable) break;
-          if (!e.retryable) throw e;
-          if (attempt === 0) {
-            if (onStatus) onStatus('💡 ' + model + ' 目前忙碌，正在自動重試…');
-            await sleep(1800);
-          } else if (modelIndex < TXT_MODELS.length - 1) {
-            if (onStatus) onStatus('🔄 切換備援文字模型：' + TXT_MODELS[modelIndex + 1] + '…');
-            await sleep(400);
+    const keys = getGoogleKeys();
+    for (let keyIndex = 0; keyIndex < keys.length; keyIndex++) {
+      const key = keys[keyIndex];
+      for (let modelIndex = 0; modelIndex < TXT_MODELS.length; modelIndex++) {
+        const model = TXT_MODELS[modelIndex];
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try { return await callGemini(model, parts, false, key); }
+          catch (e) {
+            lastError = e;
+            if (e.modelUnavailable) break;
+            if (!e.retryable && !e.quotaBlocked) throw e;
+            if (attempt === 0) {
+              if (onStatus) onStatus('💡 Google 文字模型目前忙碌，正在重試第 ' + (keyIndex + 1) + ' 組 Key…');
+              await sleep(1800);
+            } else if (modelIndex < TXT_MODELS.length - 1) {
+              if (onStatus) onStatus('🔄 切換備援文字模型：' + TXT_MODELS[modelIndex + 1] + '…');
+              await sleep(400);
+            }
           }
         }
       }
+      if (keyIndex < keys.length - 1 && onStatus) onStatus('🔑 第 ' + (keyIndex + 1) + ' 組 Google Key 不可用，切換下一組…');
     }
-    throw new Error('Google 文字模型目前忙碌，已自動重試並切換備援模型；請稍後再試。' + (lastError && lastError.message ? '\n' + lastError.message : ''));
+    throw new Error('Google 文字模型目前無法使用，已嘗試所有 Google Key 與備援文字模型。' + (lastError && lastError.message ? '\n' + lastError.message : ''));
   }
   function refPart() { return refDataUrl ? [{ inlineData: { mimeType: refMime || 'image/png', data: refDataUrl.split(',')[1] } }] : []; }
 
@@ -693,6 +774,82 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
     return `${base}為「${$('desc').value.trim()}」這組 LINE 貼圖畫其中一張。這張的表情/動作：「${parsed.action}」。${textRule}`
       + `風格：${style}。${bgWord}背景、畫面無邊框、只畫單一角色單一表情、角色置中且完整不被裁切，適合當聊天貼圖。輸出單一張正方形圖片。`;
   }
+  function imageProviderOrder() {
+    const choice = $('imgProvider').value;
+    if (choice === 'google') return ['google'];
+    if (choice === 'huggingface') return ['huggingface', 'cloudflare', 'google'];
+    if (choice === 'cloudflare') return ['cloudflare', 'huggingface', 'google'];
+    return ['google', 'huggingface', 'cloudflare'];
+  }
+  function providerHttpError(resp, provider) {
+    return resp.text().then(raw => {
+      let message = provider + ' HTTP ' + resp.status;
+      try { const data = JSON.parse(raw); message = (data.error && (data.error.message || data.error)) || (data.errors && JSON.stringify(data.errors)) || raw || message; } catch (_) { if (raw) message = raw; }
+      const err = new Error(String(message).slice(0, 500)); err.status = resp.status; err.provider = provider;
+      err.quotaBlocked = /quota|limit|billing|credit|balance|rate.?limit|resource.?exhausted/i.test(err.message) || resp.status === 429;
+      err.stopBatch = true; throw err;
+    });
+  }
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('圖片回傳資料無法讀取')); reader.readAsDataURL(blob);
+    });
+  }
+  async function imageResponseToDataUrl(resp, fallbackMime, provider) {
+    if (!resp.ok) return providerHttpError(resp, provider);
+    const type = (resp.headers.get('content-type') || '').toLowerCase();
+    if (type.includes('image/')) return blobToDataUrl(await resp.blob());
+    const data = await resp.json();
+    const b64 = data && ((data.result && data.result.image) || data.image || (data.data && data.data[0] && (data.data[0].b64_json || data.data[0].image)) || data.b64_json);
+    if (!b64) throw new Error(provider + ' 沒有回傳圖片');
+    return 'data:' + (type.includes('jpeg') ? 'image/jpeg' : fallbackMime) + ';base64,' + b64;
+  }
+  async function callHuggingFaceImage(token, prompt) {
+    const usingReference = !!refDataUrl;
+    const model = usingReference ? HF_IMAGE_MODEL : HF_TEXT_IMAGE_MODEL;
+    const body = usingReference
+      ? { inputs: refDataUrl.split(',')[1], parameters: { prompt, target_size: { width: 1024, height: 1024 } } }
+      : { inputs: prompt, parameters: { width: 1024, height: 1024 } };
+    const resp = await fetch('https://router.huggingface.co/fal-ai/models/' + model, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return imageResponseToDataUrl(resp, 'image/png', 'Hugging Face');
+  }
+  async function callCloudflareImage(token, account, prompt) {
+    const url = 'https://api.cloudflare.com/client/v4/accounts/' + encodeURIComponent(account) + '/ai/run/' + CF_IMAGE_MODEL;
+    const resp = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, steps: 4 }) });
+    return imageResponseToDataUrl(resp, 'image/jpeg', 'Cloudflare');
+  }
+  async function callImageWithFallback(prompt, onStatus) {
+    const errors = [], order = imageProviderOrder();
+    for (const provider of order) {
+      if (provider === 'google') {
+        for (const [index, key] of getGoogleKeys().entries()) {
+          try {
+            if (onStatus) onStatus('🔵 使用 Google Gemini 第 ' + (index + 1) + ' 組 Key…');
+            const parts = await callGemini(imgModel(), [{ text: prompt }, ...refPart()], true, key);
+            if (!parts.some(p => (p.inlineData && p.inlineData.data) || (p.inline_data && p.inline_data.data))) throw new Error('Google 沒有回傳圖片');
+            return { type: 'parts', parts, provider: 'Google' };
+          } catch (e) { errors.push(e); }
+        }
+      } else if (provider === 'huggingface') {
+        for (const [index, token] of getHuggingFaceKeys().entries()) {
+          try {
+            if (onStatus) onStatus('🤗 使用 Hugging Face 第 ' + (index + 1) + ' 組 Token…');
+            return { type: 'dataUrl', dataUrl: await callHuggingFaceImage(token, prompt), provider: 'Hugging Face' };
+          } catch (e) { errors.push(e); }
+        }
+      } else if (provider === 'cloudflare') {
+        for (const [index, item] of getCloudflareKeys().entries()) {
+          try {
+            if (onStatus) onStatus('☁️ 使用 Cloudflare 第 ' + (index + 1) + ' 組 Token…');
+            return { type: 'dataUrl', dataUrl: await callCloudflareImage(item.key, item.account, prompt), provider: 'Cloudflare' };
+          } catch (e) { errors.push(e); }
+        }
+      }
+    }
+    const last = errors[errors.length - 1] || new Error('沒有填寫可用的生圖服務商憑證');
+    const err = new Error(errors.length ? '所有已設定的生圖服務商都失敗：' + last.message : '請至少填寫一組生圖服務商憑證');
+    err.quotaBlocked = errors.some(e => e.quotaBlocked); err.stopBatch = true; throw err;
+  }
   function imageErrorMessage(e) {
     if (e && e.quotaBlocked) return 'Google 圖像配額為 0；請在 API Key 所屬專案設定 Billing。';
     if (e && /quota|rate limit|resource exhausted/i.test(e.message || '')) return 'Google 圖像額度或速率限制；請稍後再試。';
@@ -708,16 +865,19 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
     }
     s.err = false; s.quotaBlocked = false; s.generating = true; render();
     try {
-      const parts = await callGemini(imgModel(), [{ text: stickerPrompt(s.idea) }, ...refPart()], true);
-      const ip = parts.find(p => (p.inlineData && p.inlineData.data) || (p.inline_data && p.inline_data.data));
-      if (!ip) throw new Error('無圖片（額度/安全性）');
-      const inl = ip.inlineData || ip.inline_data;
-      await loadInto(s, 'data:' + (inl.mimeType || 'image/png') + ';base64,' + inl.data);
+      const result = await callImageWithFallback(stickerPrompt(s.idea), msg => setSt($('mainStatus'), msg, 'busy'));
+      if (result.type === 'dataUrl') await loadInto(s, result.dataUrl);
+      else {
+        const ip = result.parts.find(p => (p.inlineData && p.inlineData.data) || (p.inline_data && p.inline_data.data));
+        if (!ip) throw new Error('無圖片（額度/安全性）');
+        const inl = ip.inlineData || ip.inline_data;
+        await loadInto(s, 'data:' + (inl.mimeType || 'image/png') + ';base64,' + inl.data);
+      }
       applyBgOne(s); applyTextOne(s); s.generating = false; render();
       scheduleProjectSave();
       if (stickers.length === 16 && stickers.every(x => x.out && !x.generating)) { composeSheet(); cutSheet(); }
     } catch (e) {
-      s.err = imageErrorMessage(e); s.quotaBlocked = !!e.quotaBlocked; s.generating = false; render();
+      s.err = imageErrorMessage(e); s.quotaBlocked = !!e.quotaBlocked; s.stopBatch = !!e.stopBatch; s.generating = false; render();
       if (e.quotaBlocked) setSt($('mainStatus'), '❌ ' + s.err + ' 請先完成設定，再按該張的重生按鈕測試。', 'err');
       return false;
     }
@@ -743,15 +903,15 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
       setSt($('mainStatus'), '🎨 生成中 ' + (i + 1) + '/' + stickers.length + '…', 'busy');
       bar.style.width = (100 * i / stickers.length) + '%';
       await genOne(i);
-      if (stickers[i].quotaBlocked) {
+      if (stickers[i].stopBatch) {
         bar.style.width = (100 * (i + 1) / stickers.length) + '%';
         break;
       }
       if (i < stickers.length - 1) await sleep(1300);  // 尊重 API 速率限制
     }
     bar.style.width = '100%';
-    if (stickers.some(s => s.quotaBlocked)) {
-      setSt($('mainStatus'), '❌ Google 圖像配額為 0；請在 API Key 所屬專案設定 Billing，完成後按失敗貼圖的「重生」按鈕測試。', 'err');
+    if (stickers.some(s => s.stopBatch)) {
+      setSt($('mainStatus'), stickers.some(s => s.quotaBlocked) ? '❌ 圖像服務商配額不足或需要 Billing；請補上可用憑證後，按失敗貼圖的「重生」按鈕測試。' : '❌ 所有已設定的圖像服務商都失敗；請檢查 Key／Token、Account ID 與服務商順序。', 'err');
     } else if (stickers.length === 16 && stickers.every(s => s.out)) {
       composeSheet(); cutSheet();
       setSt($('mainStatus'), '🎉 16 張完成！已自動組成 4×4 總圖並切割，可往下打包', 'ok');
