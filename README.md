@@ -12,7 +12,7 @@
 
 | 路徑 | 適合誰 | 需要金鑰嗎 |
 |---|---|---|
-| [製造機 `index.html`](https://micl-legal.github.io/line-sticker-maker/) | 從參考圖到上架 ZIP 的完整流程 | 要（自己的 Google AI Studio 金鑰；生圖模型依 Google 方案計費） |
+| [製造機 `index.html`](https://micl-legal.github.io/line-sticker-maker/) | 從參考圖到上架 ZIP 的完整流程 | 要（Google、Hugging Face 或 Cloudflare 的自己的憑證） |
 | [舊版獨立切割器 `cutter.html`](https://micl-legal.github.io/line-sticker-maker/cutter.html) | 已經有外部 AI 產生的 4×4 總圖 | 不要，純本機 |
 
 一般使用不需要離開主頁；獨立切割器保留給既有總圖的額外入口。
@@ -43,13 +43,25 @@
 
 ZIP 內另附 `上架檢查清單.txt`，分「程式已保證」與「你要自己確認」兩區。
 
+## 多服務商金鑰與自動備援
+
+主頁的「設定 AI 服務商金鑰」可以分別填入：
+
+- Google Gemini：3 組 API Key；負責 Prompt、台詞與 Gemini 生圖。
+- Hugging Face：3 組 Token；有參考圖時嘗試 image-to-image，沒有參考圖時使用 FLUX 文字生圖。
+- Cloudflare Workers AI：3 組 Token 與對應的 Account ID；使用 FLUX.1 Schnell 文字生圖。
+
+「生圖服務商優先順序」預設是 Google → Hugging Face → Cloudflare。某組憑證失敗後，會先嘗試同服務商的下一組，再切換下一個已設定的服務商。服務商憑證只保存於目前瀏覽器的 localStorage，不會寫入專案 IndexedDB。
+
+Cloudflare 的 FLUX.1 Schnell 是文字生圖模型，因此不能直接接收參考圖；程式會繼續使用參考圖分析出的 Prompt。若需要參考圖轉圖，優先使用 Google 或 Hugging Face。
+
 ## 怎麼取得 Google AI Studio 金鑰
 
 1. 開 https://aistudio.google.com/apikey
 2. 建立 API key，複製 `AIza...`
-3. 貼進製造機的「設定金鑰」，按儲存（存在你瀏覽器的 localStorage，不會傳給任何人）
+3. 貼進製造機的「設定 AI 服務商金鑰」，按儲存（存在你瀏覽器的 localStorage，不會傳給本站）
 
-金鑰直接從瀏覽器送到 Google，不經過任何中間伺服器；本站是純靜態頁面，沒有後端。按下儲存或貼上 key 後，金鑰會保存於目前網站來源的瀏覽器 `localStorage`，重新整理同一網址不會消失；清除網站資料、私密瀏覽、換瀏覽器或換裝置時需要重新輸入。角色專案資料則使用瀏覽器 `IndexedDB` 保存，與 API 金鑰分開。
+金鑰直接從瀏覽器送到對應服務商，不經過本站伺服器；本站是純靜態頁面，沒有後端。按下儲存或貼上 key 後，憑證會保存於目前網站來源的瀏覽器 `localStorage`，重新整理同一網址不會消失；清除網站資料、私密瀏覽、換瀏覽器或換裝置時需要重新輸入。角色專案資料則使用瀏覽器 `IndexedDB` 保存，與 API 金鑰分開。請只填自己的憑證，不要把憑證寫入 GitHub 或貼給別人。
 
 ## 生圖模型
 
