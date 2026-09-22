@@ -135,13 +135,13 @@
       </div>
     </details>
 
-    <label style="margin-top:14px">2️⃣ 補充你想要的類型／風格（選填）</label>
-    <textarea id="refType" class="big-input" style="min-height:72px" placeholder="例如：療癒系手繪童書感、柔和暖色、圓潤角色、表情誇張一點，適合日常聊天；不要複製任何現成角色"></textarea>
+    <label style="margin-top:14px">2️⃣ 補充貼圖主題／風格／文字語氣（選填）</label>
+    <textarea id="refType" class="big-input" style="min-height:72px" placeholder="例如：台灣上班族日常，使用自然台灣口語，包含早安、加油、收到、下班、崩潰等常用短句，語氣可愛又幽默；畫面維持療癒手繪風"></textarea>
     <div class="row" style="margin-top:8px;align-items:center">
       <button class="btn pri mini" id="makePrompt" type="button" style="flex:0">🔎 AI 分析參考圖並產生 Prompt</button>
       <div class="status" id="promptStatus" style="margin:0"></div>
     </div>
-    <p class="hint" style="margin-top:6px">沒有參考圖也可以只用文字；如果有參考圖，圖片會和文字一起送給 Google AI 做分析。</p>
+    <p class="hint" style="margin-top:6px">可以寫角色畫風，也可以寫使用情境、受眾、台詞主題與文字語氣；沒有參考圖也可以只用文字。</p>
 
     <label>3️⃣ AI 產生的完整 Prompt（可再修改）</label>
     <textarea id="desc" class="big-input" placeholder="例如：我家的柴犬 Mochi，米色短毛、療癒風，做一組聊天常用的可愛貼圖，要有各種心情"></textarea>
@@ -195,7 +195,8 @@
 
   <!-- 點子清單（AI 生成、可編輯） -->
   <div class="card hidden" id="ideaCard">
-    <h2>💡 這一組的點子（可自由改 / 加 / 刪 / 換順序）</h2>
+    <h2>💡 16 組台詞與動作（可自由修改）</h2>
+    <p class="hint">每行格式：<code>台詞｜動作</code>。台詞會由瀏覽器後製到圖片上，確保繁體中文字與你修改的內容一致。</p>
     <div id="ideas"></div>
     <div class="row" style="margin-top:8px">
       <button class="btn ghost mini" id="addIdea" type="button" style="flex:0">➕ 加一個</button>
@@ -441,8 +442,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     stickers = []; cutStickers = []; $('results').innerHTML = ''; $('cutPreview').innerHTML = '';
     const savedStickers = Array.isArray(record.stickers) ? record.stickers : [];
     for (const item of savedStickers) {
-      const s = { idea: item.idea || '', raw: null, out: null, sel: true, generating: false, err: false };
-      if (item.out) { try { await loadInto(s, item.out); } catch (_) { s.err = '保存的圖片無法載入'; } }
+      const s = { idea: item.idea || '', raw: null, out: null, sel: true, generating: false, err: false, textApplied: false };
+      if (item.out) { try { await loadInto(s, item.out); s.textApplied = true; } catch (_) { s.err = '保存的圖片無法載入'; } }
       stickers.push(s);
     }
     if (stickers.length) { $('resultCard').classList.remove('hidden'); render(); }
@@ -596,7 +597,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
 ${refDataUrl ? '我有附上一張參考圖片。請先分析圖片中的角色外觀、比例、色彩、線條、材質、構圖、背景處理與整體氣氛，再把這些視覺特徵轉成原創角色與原創畫面描述。' : '沒有附參考圖片，請只根據文字方向整理。'}
 
-參考類型／風格：
+貼圖主題／風格／文字語氣：
 ${ref || '（未提供，請依既有描述發展合適風格）'}
 
 既有貼圖描述（如果有，請保留其中的角色、主題與用途）：
@@ -606,9 +607,10 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
 1. 只輸出一段完整 Prompt，不要解釋、不要加標題、不要加 Markdown。
 2. 使用繁體中文，內容要具體但保留創作彈性。
 3. 明確寫出原創角色、視覺風格、色彩、線條、質感、角色比例、構圖、情緒與日常聊天貼圖用途。
-4. 必須適合 LINE 靜態貼圖：單一角色、完整入鏡、不被裁切、背景乾淨、方便去背。
-5. 如果參考內容提到現成角色、品牌、Logo 或特定藝術家，請轉換成一般性的視覺特徵，不要複製其角色、商標或獨特簽名風格。
-6. 不要自行發明貼圖台詞；台詞會在下一步逐張規劃。
+4. 清楚整理貼圖主題、使用情境、目標受眾、文字語氣、台詞長度與用字規則；不要列出具體的 16 句台詞。
+5. 必須適合 LINE 靜態貼圖：單一角色、完整入鏡、不被裁切、背景乾淨、方便去背。
+6. 如果參考內容提到現成角色、品牌、Logo 或特定藝術家，請轉換成一般性的視覺特徵，不要複製其角色、商標或獨特簽名風格。
+7. 不要要求影像模型自行繪製台詞文字；具體台詞會由下一步產生，並由瀏覽器後製到圖片上。
 `;
     try {
       const parts = await callTextGemini([{ text: prompt }, ...refPart()], msg => setSt($('promptStatus'), msg, 'busy'));
@@ -631,14 +633,25 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   async function generateIdeas() {
     if (!getKey()) { setSt($('mainStatus'), '⚠️ 請先在「設定金鑰」填入 Google 金鑰', 'err'); return false; }
     const desc = $('desc').value.trim(); if (!desc) { setSt($('mainStatus'), '⚠️ 請先描述你想要的貼圖', 'err'); return false; }
+    const theme = $('refType').value.trim();
     const n = +$('count').value;
     setSt($('mainStatus'), '💡 AI 正在想點子…', 'busy');
-    const prompt = `我要做一組 LINE 聊天貼圖，主題：「${desc}」。請列出 ${n} 個「表情/動作/情緒」點子，多元又實用（聊天常用，如開心、謝謝、OK、思考、崩潰…）。每個用 3~8 個字。只輸出 ${n} 行、每行一個、不要編號、不要多餘文字。`;
+    const prompt = `我要做一組 LINE 聊天貼圖。
+
+完整角色與視覺 Prompt：
+${desc}
+
+使用者補充的貼圖主題／風格／文字語氣：
+${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天台詞）'}
+
+請列出 ${n} 組實用又多元的貼圖內容，涵蓋問候、回覆、情緒、感謝、拒絕、加油或符合主題的常用情境。
+每行必須嚴格使用格式：「台詞｜動作」。台詞使用繁體中文、約 2~12 字；動作用 3~12 字描述角色表情或動作；「｜」只能作為分隔符號，不要在台詞內使用。
+台詞要自然、適合直接放在 LINE 貼圖上，不要編號、不要加引號、不要解釋、不要多餘文字，只輸出 ${n} 行。`;
     try {
       const parts = await callTextGemini([{ text: prompt }], msg => setSt($('mainStatus'), msg, 'busy'));
       const txt = parts.map(p => p.text || '').join('\n');
       let arr = txt.split('\n').map(s => s.replace(/^\s*[-*\d.、）)]+\s*/, '').trim()).filter(Boolean);
-      while (arr.length < n) arr.push('表情 ' + (arr.length + 1));
+      while (arr.length < n) arr.push('貼圖' + (arr.length + 1) + '｜角色做出自然聊天表情');
       ideas = arr.slice(0, n); renderIdeas();
       $('ideaCard').classList.remove('hidden'); $('ideaCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       scheduleProjectSave();
@@ -665,10 +678,17 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   $('goBtn').addEventListener('click', generateIdeas);
 
   // ---- 依點子逐張生成 ----
+  function parseIdea(idea) {
+    const clean = String(idea || '').trim(), divider = clean.indexOf('｜');
+    if (divider < 0) return { text: '', action: clean || '自然聊天表情' };
+    return { text: clean.slice(0, divider).trim(), action: clean.slice(divider + 1).trim() || '自然聊天表情' };
+  }
   function stickerPrompt(idea) {
     const style = $('style').value, bgWord = $('bgChoice').value === 'green' ? '純綠幕（chroma green #00b140）' : '純白色';
     const base = refDataUrl ? '以我提供的參考圖分析出的角色視覺特徵為參考，維持角色一致但必須是原創，不複製第三方角色、Logo 或商標，' : '';
-    return `${base}為「${$('desc').value.trim()}」這組 LINE 貼圖畫其中一張。這張的表情/動作：「${idea}」。`
+    const parsed = parseIdea(idea);
+    const textRule = parsed.text ? `這張貼圖的精確台詞是「${parsed.text}」，請不要在圖片內自行繪製任何文字，台詞會由系統後製。` : '這張貼圖不放台詞，請不要在圖片內繪製文字。';
+    return `${base}為「${$('desc').value.trim()}」這組 LINE 貼圖畫其中一張。這張的表情/動作：「${parsed.action}」。${textRule}`
       + `風格：${style}。${bgWord}背景、畫面無邊框、只畫單一角色單一表情、角色置中且完整不被裁切，適合當聊天貼圖。輸出單一張正方形圖片。`;
   }
   async function genOne(i) {
@@ -685,7 +705,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       if (!ip) throw new Error('無圖片（額度/安全性）');
       const inl = ip.inlineData || ip.inline_data;
       await loadInto(s, 'data:' + (inl.mimeType || 'image/png') + ';base64,' + inl.data);
-      applyBgOne(s); s.generating = false; render();
+      applyBgOne(s); applyTextOne(s); s.generating = false; render();
       scheduleProjectSave();
       if (stickers.length === 16 && stickers.every(x => x.out && !x.generating)) { composeSheet(); cutSheet(); }
     } catch (e) { s.err = e.message; s.generating = false; render(); }
@@ -693,15 +713,15 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   function loadInto(s, src) {
     return new Promise((res, rej) => {
       const img = new Image();
-      img.onload = () => { const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight; cv.getContext('2d').drawImage(img, 0, 0); s.raw = cv; s.out = cv; res(); };
+      img.onload = () => { const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight; cv.getContext('2d').drawImage(img, 0, 0); s.raw = cv; s.out = cv; s.textApplied = false; res(); };
       img.onerror = () => rej(new Error('圖片載入失敗')); img.src = src;
     });
   }
   async function genImgs() {
     if (!ideas.length) { toast('⚠️ 先產生點子'); return; }
-    while (ideas.length < 16) ideas.push('表情 ' + (ideas.length + 1));
+    while (ideas.length < 16) ideas.push('貼圖' + (ideas.length + 1) + '｜角色做出自然聊天表情');
     ideas = ideas.slice(0, 16);
-    stickers = ideas.map(idea => ({ idea, raw: null, out: null, sel: true, generating: false, err: false }));
+    stickers = ideas.map(idea => ({ idea, raw: null, out: null, sel: true, generating: false, err: false, textApplied: false }));
     cutStickers = [];
     $('resultCard').classList.remove('hidden'); $('sheetCard').classList.add('hidden'); $('packCard').classList.add('hidden');
     $('cutPreview').innerHTML = ''; render();
@@ -774,7 +794,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   // ---- 去背 ----
   $('tol').addEventListener('input', () => $('tolVal').textContent = $('tol').value);
   $('applyBg').addEventListener('click', () => {
-    stickers.forEach(applyBgOne); render();
+    stickers.forEach(s => { applyBgOne(s); applyTextOne(s); }); render();
     scheduleProjectSave();
     if (stickers.length === 16 && stickers.every(s => s.out)) { composeSheet(); cutSheet(); }
   });
@@ -795,6 +815,35 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   function sampleCorners(d, w, h) {
     const pts = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + (w - 1)) * 4]; let r = 0, g = 0, b = 0;
     pts.forEach(p => { r += d[p]; g += d[p + 1]; b += d[p + 2]; }); return [r / 4, g / 4, b / 4];
+  }
+  function applyTextOne(s) {
+    if (!s.out) return;
+    if (s.textApplied) return;
+    const text = parseIdea(s.idea).text;
+    if (!text || /^(\(無字\)|（無字）|無字)$/.test(text)) { s.textApplied = true; return; }
+    const src = s.out, w = src.width, h = src.height;
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const ctx = cv.getContext('2d'); ctx.drawImage(src, 0, 0);
+    let fontSize = Math.max(22, Math.round(Math.min(w, h) * 0.075));
+    const maxWidth = w * 0.84;
+    const wrap = () => {
+      ctx.font = '800 ' + fontSize + 'px ui-rounded,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif';
+      const lines = [''];
+      for (const ch of Array.from(text)) {
+        const next = lines[lines.length - 1] + ch;
+        if (ctx.measureText(next).width > maxWidth && lines[lines.length - 1]) lines.push(ch); else lines[lines.length - 1] = next;
+      }
+      return lines;
+    };
+    let lines = wrap();
+    while (lines.length > 3 && fontSize > 18) { fontSize -= 2; lines = wrap(); }
+    const lineHeight = Math.round(fontSize * 1.18), bottom = Math.round(h * 0.07);
+    let y = h - bottom - lineHeight * (lines.length - 1);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+    ctx.font = '800 ' + fontSize + 'px ui-rounded,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif';
+    ctx.lineWidth = Math.max(4, Math.round(fontSize * 0.18)); ctx.strokeStyle = 'rgba(51,47,71,.95)'; ctx.fillStyle = '#fff';
+    lines.forEach(line => { ctx.strokeText(line, w / 2, y); ctx.fillText(line, w / 2, y); y += lineHeight; });
+    s.out = cv; s.textApplied = true;
   }
 
   // ---- 渲染貼圖卡（每張可重生/改/刪）----
