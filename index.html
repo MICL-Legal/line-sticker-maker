@@ -53,6 +53,7 @@
   /* ideas */
   .idea{display:flex;gap:8px;align-items:center;margin:6px 0;}
   .idea input{flex:1;}
+  .idea-actions{display:flex;gap:4px;align-items:center;flex:0 0 auto;}
   .idea .h{font-family:var(--mono);color:#a29ab8;font-size:12px;width:26px;flex:0 0 auto;text-align:right;}
   .grip{cursor:grab;color:#c3bcd6;flex:0 0 auto;}
   .provider-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px;}
@@ -266,7 +267,7 @@
   <!-- 點子清單（AI 生成、可編輯） -->
   <div class="card hidden" id="ideaCard">
     <h2>💡 16 組台詞與動作（可自由修改）</h2>
-    <p class="hint">每行格式：<code>台詞｜動作</code>。台詞會由瀏覽器後製到圖片上，確保繁體中文字與你修改的內容一致。</p>
+    <p class="hint">每行格式：<code>台詞｜動作</code>。你可以只改某一行；按該行的「✨ AI 改寫」只會改那一行，不會重想整組。台詞會由瀏覽器後製到圖片上，確保繁體中文字與你修改的內容一致。</p>
     <div id="ideas"></div>
     <div class="row" style="margin-top:8px">
       <button class="btn ghost mini" id="addIdea" type="button" style="flex:0">➕ 加一個</button>
@@ -913,14 +914,53 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
       return true;
     } catch (e) { setSt($('mainStatus'), '❌ 想點子失敗：' + e.message, 'err'); return false; }
   }
+  async function rewriteIdea(index, button) {
+    if (!getKey()) { setSt($('mainStatus'), '⚠️ AI 改寫台詞需要 Google 金鑰', 'err'); return; }
+    const original = String(ideas[index] || '').trim();
+    if (!original) { setSt($('mainStatus'), '⚠️ 這一行目前是空的，請先輸入一點內容', 'err'); return; }
+    const oldLabel = button ? button.textContent : '';
+    if (button) { button.disabled = true; button.textContent = '改寫中…'; }
+    const prompt = `你是 LINE 聊天貼圖編輯。請只改寫下面這一行貼圖，不要改動其他貼圖，也不要改變角色、對象與整組主題。
+
+整組貼圖主題：${$('desc').value.trim() || '可愛、療癒、日常聊天貼圖'}
+使用者補充：${$('refType').value.trim() || '自然、親切、適合家人聊天'}
+可愛化要求：${$('cuteNotes').value.trim() || '圓潤、討喜、表情明亮、像療癒玩偶'}
+原本這一行：${original}
+
+請讓台詞自然、口語、適合放在 LINE 貼圖上；動作要可愛、容易畫出、情緒一眼就懂。台詞約 2～12 個繁體中文字，動作用 3～18 個字描述。
+只輸出一行，嚴格格式為「台詞｜動作」，不要編號、引號、解釋或其他文字。`;
+    try {
+      const parts = await callTextGemini([{ text: prompt }], msg => setSt($('mainStatus'), msg, 'busy'));
+      let rewritten = parts.map(p => p.text || '').join('\n').split('\n')
+        .map(s => s.replace(/^\s*[-*\d.、）)]+\s*/, '').trim()).filter(Boolean)[0] || '';
+      if (!rewritten.includes('｜')) throw new Error('AI 沒有按照「台詞｜動作」格式返回');
+      ideas[index] = rewritten;
+      const ideaRow = button && button.closest ? button.closest('.idea') : null;
+      if (ideaRow) ideaRow.querySelector('input').value = rewritten;
+      if (stickers[index]) {
+        stickers[index].idea = rewritten;
+        const regenerated = await genOne(index);
+        setSt($('mainStatus'), regenerated ? '✅ 第 ' + String(index + 1).padStart(2, '0') + ' 組已改寫並只重生這一張' : '⚠️ 台詞已改寫，但這一張圖片重生失敗，請按「🔁 只重生」再試一次', regenerated ? 'ok' : 'err');
+      } else {
+        renderIdeas();
+        setSt($('mainStatus'), '✅ 第 ' + String(index + 1).padStart(2, '0') + ' 組已改寫；其他組沒有變動', 'ok');
+      }
+      scheduleProjectSave();
+      if (button && document.body.contains(button)) { button.disabled = false; button.textContent = oldLabel; }
+    } catch (e) {
+      setSt($('mainStatus'), '❌ 單行改寫失敗：' + e.message, 'err');
+      if (button) { button.disabled = false; button.textContent = oldLabel; }
+    }
+  }
   function renderIdeas() {
     const box = $('ideas'); box.innerHTML = '';
     ideas.forEach((t, i) => {
       const row = document.createElement('div'); row.className = 'idea';
       row.innerHTML = '<span class="h">' + String(i + 1).padStart(2, '0') + '</span><input type="text" value="' +
-        t.replace(/"/g, '&quot;') + '"><button class="btn ghost tiny" type="button">🗑️</button>';
+        t.replace(/"/g, '&quot;') + '"><span class="idea-actions"><button class="btn ghost tiny" data-a="rewrite" type="button" title="只改寫這一行">✨ AI 改寫</button><button class="btn ghost tiny" data-a="delete" type="button" title="刪除這一行">🗑️</button></span>';
       row.querySelector('input').addEventListener('input', e => { ideas[i] = e.target.value; scheduleProjectSave(); });
-      row.querySelector('button').addEventListener('click', () => { ideas.splice(i, 1); renderIdeas(); scheduleProjectSave(); });
+      row.querySelector('[data-a=rewrite]').addEventListener('click', e => rewriteIdea(i, e.currentTarget));
+      row.querySelector('[data-a=delete]').addEventListener('click', () => { ideas.splice(i, 1); renderIdeas(); scheduleProjectSave(); });
       box.appendChild(row);
     });
   }
@@ -1212,8 +1252,8 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
       const spin = s.generating ? '<div class="spin">生成中…</div>' : (s.err ? '<div class="spin" style="color:#c15a4a">❌ ' + s.err + '</div>' : '');
       div.innerHTML = img + spin +
         '<div class="cap">' + (s.idea || '—') + '</div>' +
-        '<div class="acts"><button class="btn ghost tiny" data-a="re">🔁</button>' +
-        '<button class="btn ghost tiny" data-a="ed">✏️</button></div>';
+        '<div class="acts"><button class="btn ghost tiny" data-a="re" title="只重新生成這一張">🔁 只重生</button>' +
+        '<button class="btn ghost tiny" data-a="ed" title="修改台詞或動作後，只重新生成這一張">✏️ 修改這張</button></div>';
       div.querySelector('[data-a=re]').addEventListener('click', () => genOne(i));
       div.querySelector('[data-a=ed]').addEventListener('click', () => { const v = prompt('這張要改成什麼表情/動作？', s.idea); if (v != null) { s.idea = v.trim(); genOne(i); } });
       box.appendChild(div);
