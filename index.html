@@ -66,7 +66,7 @@
   .st .cap{font-size:11px;color:#7b7594;margin:5px 0;min-height:14px;word-break:break-all;}
   .st .acts{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;}
   .st .pick{position:absolute;top:6px;left:6px;transform:scale(1.25);accent-color:var(--tiffany);}
-  .st .spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.7);border-radius:12px;font-size:13px;font-weight:800;color:#7a5cc0;}
+  .st .spin{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow-wrap:anywhere;word-break:break-word;text-align:center;line-height:1.35;background:rgba(255,255,255,.86);border-radius:12px;font-size:12px;font-weight:800;color:#7a5cc0;}
   .tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0 12px;}
   .tools label{margin:0;}
   input[type=range]{accent-color:var(--purple);}
@@ -167,7 +167,8 @@
             <option value="gemini-3.1-flash-image">3.1 Flash（推薦・便宜・中文字已實測正確）</option>
             <option value="gemini-3-pro-image">3 Pro（最貴最穩・複雜中文/多主體）</option>
             <option value="gemini-2.5-flash-image">2.5 Flash（最省・中文字會糊，純表情用）</option>
-          </select><p class="hint">2026-09-19 實測：3.1 Flash 已能正確渲染繁體中文，無須為了文字硬上 Pro。</p></div>
+          </select><p class="hint">2026-09-19 實測：3.1 Flash 已能正確渲染繁體中文，無須為了文字硬上 Pro。</p>
+          <div class="warnbox" style="margin-top:8px">⚠️ 圖像模型可能需要 Google AI Studio 付費層級。若錯誤顯示 <code>free_tier</code> 或 <code>limit: 0</code>，請在這把 API Key 所屬的專案設定 Billing；單純重試不會增加配額。</div></div>
         </div>
       </div>
     </details>
@@ -554,6 +555,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const err = new Error(m); err.status = resp.status;
       err.retryable = [408, 429, 500, 502, 503, 504].includes(resp.status) || /high demand|temporar|overload|rate limit|quota/i.test(m);
       err.modelUnavailable = /model.*(not found|not available|no longer available)|not available to new users/i.test(m);
+      err.quotaBlocked = /free[_ ]tier|quota exceeded for metric|limit:\s*0|billing details|set up billing/i.test(m);
       throw err;
     }
     const data = await resp.json();
@@ -691,6 +693,12 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
     return `${base}為「${$('desc').value.trim()}」這組 LINE 貼圖畫其中一張。這張的表情/動作：「${parsed.action}」。${textRule}`
       + `風格：${style}。${bgWord}背景、畫面無邊框、只畫單一角色單一表情、角色置中且完整不被裁切，適合當聊天貼圖。輸出單一張正方形圖片。`;
   }
+  function imageErrorMessage(e) {
+    if (e && e.quotaBlocked) return 'Google 圖像配額為 0；請在 API Key 所屬專案設定 Billing。';
+    if (e && /quota|rate limit|resource exhausted/i.test(e.message || '')) return 'Google 圖像額度或速率限制；請稍後再試。';
+    const raw = String((e && e.message) || '未知錯誤').replace(/\s+/g, ' ').trim();
+    return raw.length > 180 ? raw.slice(0, 177) + '…' : raw;
+  }
   async function genOne(i) {
     const s = stickers[i];
     if (s.out) {
@@ -698,7 +706,7 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
       $('sheetCard').classList.add('hidden'); $('packCard').classList.add('hidden');
       $('cutPreview').innerHTML = '';
     }
-    s.err = false; s.generating = true; render();
+    s.err = false; s.quotaBlocked = false; s.generating = true; render();
     try {
       const parts = await callGemini(imgModel(), [{ text: stickerPrompt(s.idea) }, ...refPart()], true);
       const ip = parts.find(p => (p.inlineData && p.inlineData.data) || (p.inline_data && p.inline_data.data));
@@ -708,7 +716,12 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
       applyBgOne(s); applyTextOne(s); s.generating = false; render();
       scheduleProjectSave();
       if (stickers.length === 16 && stickers.every(x => x.out && !x.generating)) { composeSheet(); cutSheet(); }
-    } catch (e) { s.err = e.message; s.generating = false; render(); }
+    } catch (e) {
+      s.err = imageErrorMessage(e); s.quotaBlocked = !!e.quotaBlocked; s.generating = false; render();
+      if (e.quotaBlocked) setSt($('mainStatus'), '❌ ' + s.err + ' 請先完成設定，再按該張的重生按鈕測試。', 'err');
+      return false;
+    }
+    return true;
   }
   function loadInto(s, src) {
     return new Promise((res, rej) => {
@@ -730,10 +743,16 @@ ${theme || '（未另外補充，請依完整 Prompt 發展實用的日常聊天
       setSt($('mainStatus'), '🎨 生成中 ' + (i + 1) + '/' + stickers.length + '…', 'busy');
       bar.style.width = (100 * i / stickers.length) + '%';
       await genOne(i);
+      if (stickers[i].quotaBlocked) {
+        bar.style.width = (100 * (i + 1) / stickers.length) + '%';
+        break;
+      }
       if (i < stickers.length - 1) await sleep(1300);  // 尊重 API 速率限制
     }
     bar.style.width = '100%';
-    if (stickers.length === 16 && stickers.every(s => s.out)) {
+    if (stickers.some(s => s.quotaBlocked)) {
+      setSt($('mainStatus'), '❌ Google 圖像配額為 0；請在 API Key 所屬專案設定 Billing，完成後按失敗貼圖的「重生」按鈕測試。', 'err');
+    } else if (stickers.length === 16 && stickers.every(s => s.out)) {
       composeSheet(); cutSheet();
       setSt($('mainStatus'), '🎉 16 張完成！已自動組成 4×4 總圖並切割，可往下打包', 'ok');
     } else {
