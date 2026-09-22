@@ -275,6 +275,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const GRID = 4, SHEET_CELL = 512, SHEET_SIZE = GRID * SHEET_CELL;
   const MAX_BYTES = 1024 * 1024;
   const TXT_MODEL = 'gemini-3.6-flash';
+  const TXT_MODELS = [TXT_MODEL, 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
   const imgModel = () => ($('imgModel') && $('imgModel').value) || 'gemini-3.1-flash-image';
   const API = m => 'https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(getKey());
 
@@ -546,9 +547,38 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const body = { contents: [{ parts }] };
     if (imageOut) body.generationConfig = { responseModalities: ['IMAGE'] };
     const resp = await fetch(API(model), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!resp.ok) { let m = 'HTTP ' + resp.status; try { const e = await resp.json(); m = (e.error && e.error.message) || m; } catch (_) {} throw new Error(m); }
+    if (!resp.ok) {
+      let m = 'HTTP ' + resp.status;
+      try { const e = await resp.json(); m = (e.error && e.error.message) || m; } catch (_) {}
+      const err = new Error(m); err.status = resp.status;
+      err.retryable = [408, 429, 500, 502, 503, 504].includes(resp.status) || /high demand|temporar|overload|rate limit|quota/i.test(m);
+      err.modelUnavailable = /model.*(not found|not available|no longer available)|not available to new users/i.test(m);
+      throw err;
+    }
     const data = await resp.json();
     return (((data.candidates || [])[0] || {}).content || {}).parts || [];
+  }
+  async function callTextGemini(parts, onStatus) {
+    let lastError = null;
+    for (let modelIndex = 0; modelIndex < TXT_MODELS.length; modelIndex++) {
+      const model = TXT_MODELS[modelIndex];
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { return await callGemini(model, parts, false); }
+        catch (e) {
+          lastError = e;
+          if (e.modelUnavailable) break;
+          if (!e.retryable) throw e;
+          if (attempt === 0) {
+            if (onStatus) onStatus('💡 ' + model + ' 目前忙碌，正在自動重試…');
+            await sleep(1800);
+          } else if (modelIndex < TXT_MODELS.length - 1) {
+            if (onStatus) onStatus('🔄 切換備援文字模型：' + TXT_MODELS[modelIndex + 1] + '…');
+            await sleep(400);
+          }
+        }
+      }
+    }
+    throw new Error('Google 文字模型目前忙碌，已自動重試並切換備援模型；請稍後再試。' + (lastError && lastError.message ? '\n' + lastError.message : ''));
   }
   function refPart() { return refDataUrl ? [{ inlineData: { mimeType: refMime || 'image/png', data: refDataUrl.split(',')[1] } }] : []; }
 
@@ -581,7 +611,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
 6. 不要自行發明貼圖台詞；台詞會在下一步逐張規劃。
 `;
     try {
-      const parts = await callGemini(TXT_MODEL, [{ text: prompt }, ...refPart()], false);
+      const parts = await callTextGemini([{ text: prompt }, ...refPart()], msg => setSt($('promptStatus'), msg, 'busy'));
       const txt = parts.map(p => p.text || '').join('\n').trim();
       if (!txt) throw new Error('AI 沒有返回 Prompt');
       $('desc').value = txt;
@@ -605,7 +635,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
     setSt($('mainStatus'), '💡 AI 正在想點子…', 'busy');
     const prompt = `我要做一組 LINE 聊天貼圖，主題：「${desc}」。請列出 ${n} 個「表情/動作/情緒」點子，多元又實用（聊天常用，如開心、謝謝、OK、思考、崩潰…）。每個用 3~8 個字。只輸出 ${n} 行、每行一個、不要編號、不要多餘文字。`;
     try {
-      const parts = await callGemini(TXT_MODEL, [{ text: prompt }], false);
+      const parts = await callTextGemini([{ text: prompt }], msg => setSt($('mainStatus'), msg, 'busy'));
       const txt = parts.map(p => p.text || '').join('\n');
       let arr = txt.split('\n').map(s => s.replace(/^\s*[-*\d.、）)]+\s*/, '').trim()).filter(Boolean);
       while (arr.length < n) arr.push('表情 ' + (arr.length + 1));
