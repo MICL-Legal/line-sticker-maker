@@ -98,6 +98,29 @@
     <div class="workflow-note">🧭 使用方式：先上傳一張你想參考的圖片，按「AI 分析參考圖並產生 Prompt」；再確認 Prompt 和貼圖數量，按生成。完成後系統會自動組成固定 4×4 總圖、在同頁切割，最後下載 LINE 上架 ZIP。</div>
 
     <details open>
+      <summary>🧠 角色專案記憶（跨日保存）</summary>
+      <div class="inner">
+        <div class="row" style="align-items:flex-end">
+          <div style="flex:3"><label>專案名稱</label><input id="projectName" type="text" placeholder="例如：Mochi 柴犬角色貼圖"></div>
+          <button class="btn pri mini" id="saveProjectBtn" type="button" style="flex:0">💾 儲存專案</button>
+          <button class="btn ghost mini" id="newProjectBtn" type="button" style="flex:0">➕ 新專案</button>
+        </div>
+        <div class="row" style="margin-top:10px;align-items:flex-end">
+          <div style="flex:3"><label>已保存的角色專案</label><select id="projectList"><option value="">（尚無保存專案）</option></select></div>
+          <button class="btn ghost mini" id="loadProjectBtn" type="button" style="flex:0">📂 載入</button>
+          <button class="btn ghost mini" id="deleteProjectBtn" type="button" style="flex:0">🗑️ 刪除</button>
+        </div>
+        <div class="status" id="projectStatus"></div>
+        <div class="hint" id="projectMeta">尚未建立角色專案；開始輸入或上傳後會自動保存。</div>
+        <details style="margin-top:8px">
+          <summary>🕘 Prompt 歷史紀錄</summary>
+          <div id="promptHistoryList" class="hint" style="margin-top:8px">尚無 Prompt 歷史。</div>
+        </details>
+        <p class="hint">資料只保存於目前瀏覽器與這個網站來源。重新整理、隔天回來仍可載入；清除網站資料或換裝置不會同步。</p>
+      </div>
+    </details>
+
+    <details open>
       <summary>1️⃣ 上傳參考圖（選填）</summary>
       <div class="inner">
         <div id="refDrop">
@@ -278,6 +301,200 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const toBlob = cv => new Promise(res => cv.toBlob(res, 'image/png'));
 
+  // ---- 角色專案記憶：IndexedDB 保存文字、參考圖與已生成貼圖 ----
+  const PROJECT_DB = 'line_maker_projects_v1';
+  const PROJECT_STORE = 'projects';
+  const ACTIVE_PROJECT_LS = 'line_maker_active_project';
+  let projectDBPromise = null, projectId = null, projectCreatedAt = null;
+  let promptHistory = [], projectSaveTimer = null, projectSaveChain = Promise.resolve();
+
+  function openProjectDB() {
+    if (projectDBPromise) return projectDBPromise;
+    if (typeof indexedDB === 'undefined') return Promise.reject(new Error('這個瀏覽器不支援 IndexedDB'));
+    projectDBPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(PROJECT_DB, 1);
+      req.onupgradeneeded = () => {
+        if (!req.result.objectStoreNames.contains(PROJECT_STORE)) req.result.createObjectStore(PROJECT_STORE, { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('無法開啟專案資料庫'));
+    });
+    return projectDBPromise;
+  }
+  function projectDBRequest(method, arg) {
+    return openProjectDB().then(db => new Promise((resolve, reject) => {
+      const readOnly = method === 'get' || method === 'getAll';
+      const tx = db.transaction(PROJECT_STORE, readOnly ? 'readonly' : 'readwrite');
+      const store = tx.objectStore(PROJECT_STORE);
+      let req;
+      try { req = arg === undefined ? store[method]() : store[method](arg); }
+      catch (e) { reject(e); return; }
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('專案資料庫操作失敗'));
+    }));
+  }
+  function newProjectId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'project-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+  function rememberActiveProject(id) {
+    try { if (id) localStorage.setItem(ACTIVE_PROJECT_LS, id); else localStorage.removeItem(ACTIVE_PROJECT_LS); } catch (_) {}
+  }
+  function activeProjectId() {
+    try { return localStorage.getItem(ACTIVE_PROJECT_LS) || ''; } catch (_) { return ''; }
+  }
+  function projectDate(ts) { return ts ? new Date(ts).toLocaleString('zh-TW') : ''; }
+  function setProjectStatus(msg, cls) { setSt($('projectStatus'), msg, cls); }
+  function renderProjectMeta() {
+    renderPromptHistory();
+    if (!projectId) {
+      $('projectMeta').textContent = '尚未建立角色專案；開始輸入或上傳後會自動保存。';
+      return;
+    }
+    $('projectMeta').textContent = '已保存：' + projectDate(Date.now()) + ' · Prompt 歷史 ' + promptHistory.length + ' 個版本';
+  }
+  function renderPromptHistory() {
+    const box = $('promptHistoryList'); if (!box) return;
+    box.innerHTML = '';
+    if (!promptHistory.length) { box.textContent = '尚無 Prompt 歷史。'; return; }
+    promptHistory.slice().reverse().forEach((item, reverseIndex) => {
+      const row = document.createElement('div'); row.style.margin = '6px 0';
+      const btn = document.createElement('button'); btn.className = 'btn ghost tiny'; btn.type = 'button';
+      btn.textContent = '恢復版本 ' + (promptHistory.length - reverseIndex) + ' · ' + projectDate(item.time);
+      btn.addEventListener('click', () => { $('desc').value = item.text; scheduleProjectSave(); toast('🕘 已恢復這個 Prompt 版本'); });
+      const preview = document.createElement('span'); preview.textContent = ' ' + item.text.slice(0, 80) + (item.text.length > 80 ? '…' : '');
+      row.append(btn, preview); box.appendChild(row);
+    });
+  }
+  function projectSnapshot() {
+    const savedStickers = stickers.map(s => {
+      let out = null;
+      try { out = s.out ? s.out.toDataURL('image/png') : null; } catch (_) {}
+      return { idea: s.idea || '', out };
+    });
+    const now = Date.now();
+    return {
+      id: projectId || newProjectId(),
+      name: $('projectName').value.trim() || '未命名角色專案',
+      createdAt: projectCreatedAt || now,
+      updatedAt: now,
+      refDataUrl, refMime,
+      refType: $('refType').value,
+      desc: $('desc').value,
+      style: $('style').value,
+      bgChoice: $('bgChoice').value,
+      bgMode: $('bgMode').value,
+      tol: $('tol').value,
+      imgModel: $('imgModel').value,
+      ideas: ideas.slice(),
+      stickers: savedStickers,
+      promptHistory: promptHistory.slice(-20),
+      version: 1
+    };
+  }
+  async function refreshProjectList() {
+    const list = $('projectList'); if (!list) return;
+    const rows = (await projectDBRequest('getAll') || []).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    list.innerHTML = '';
+    if (!rows.length) {
+      const empty = document.createElement('option'); empty.value = ''; empty.textContent = '（尚無保存專案）'; list.appendChild(empty); return;
+    }
+    rows.forEach(row => {
+      const opt = document.createElement('option'); opt.value = row.id; opt.textContent = (row.name || '未命名角色專案') + ' · ' + projectDate(row.updatedAt); list.appendChild(opt);
+    });
+    if (projectId) list.value = projectId;
+  }
+  async function saveProject(silent) {
+    try {
+      const record = projectSnapshot();
+      await projectDBRequest('put', record);
+      projectId = record.id; projectCreatedAt = record.createdAt; rememberActiveProject(projectId);
+      $('projectName').value = record.name;
+      await refreshProjectList(); renderProjectMeta();
+      setProjectStatus(silent ? '✅ 已自動保存角色專案' : '✅ 專案已保存，重新整理後仍可載入', 'ok');
+    } catch (e) {
+      setProjectStatus('⚠️ 專案保存失敗：' + e.message, 'err');
+    }
+  }
+  function scheduleProjectSave() {
+    clearTimeout(projectSaveTimer);
+    projectSaveTimer = setTimeout(() => {
+      projectSaveChain = projectSaveChain.then(() => saveProject(true));
+    }, 800);
+  }
+  async function restoreProject(record) {
+    projectId = record.id; projectCreatedAt = record.createdAt || Date.now(); promptHistory = Array.isArray(record.promptHistory) ? record.promptHistory : [];
+    $('projectName').value = record.name || '未命名角色專案';
+    $('refType').value = record.refType || ''; $('desc').value = record.desc || '';
+    if (record.style) $('style').value = record.style;
+    if (record.bgChoice) $('bgChoice').value = record.bgChoice;
+    if (record.bgMode) $('bgMode').value = record.bgMode;
+    if (record.tol) { $('tol').value = record.tol; $('tolVal').textContent = record.tol; }
+    if (record.imgModel) $('imgModel').value = record.imgModel;
+    refDataUrl = record.refDataUrl || null; refMime = record.refMime || null;
+    $('refFile').value = '';
+    if (refDataUrl) { $('refPrev').src = refDataUrl; $('refPrev').classList.remove('hidden'); }
+    else { $('refPrev').src = ''; $('refPrev').classList.add('hidden'); }
+    ideas = Array.isArray(record.ideas) ? record.ideas.slice() : [];
+    renderIdeas(); $('ideaCard').classList.toggle('hidden', !ideas.length);
+    stickers = []; cutStickers = []; $('results').innerHTML = ''; $('cutPreview').innerHTML = '';
+    const savedStickers = Array.isArray(record.stickers) ? record.stickers : [];
+    for (const item of savedStickers) {
+      const s = { idea: item.idea || '', raw: null, out: null, sel: true, generating: false, err: false };
+      if (item.out) { try { await loadInto(s, item.out); } catch (_) { s.err = '保存的圖片無法載入'; } }
+      stickers.push(s);
+    }
+    if (stickers.length) { $('resultCard').classList.remove('hidden'); render(); }
+    else $('resultCard').classList.add('hidden');
+    $('sheetCard').classList.add('hidden'); $('packCard').classList.add('hidden');
+    if (stickers.length === 16 && stickers.every(s => s.out)) { composeSheet(); cutSheet(); }
+    renderProjectMeta(); $('projectList').value = projectId;
+    setProjectStatus('✅ 已載入角色專案：' + record.name, 'ok');
+  }
+  async function loadSelectedProject() {
+    const id = $('projectList').value; if (!id) { setProjectStatus('⚠️ 請先選擇一個專案', 'err'); return; }
+    try { const record = await projectDBRequest('get', id); if (record) await restoreProject(record); }
+    catch (e) { setProjectStatus('❌ 載入失敗：' + e.message, 'err'); }
+  }
+  function clearWorkingState() {
+    refDataUrl = null; refMime = null; ideas = []; stickers = []; cutStickers = []; promptHistory = [];
+    $('refType').value = ''; $('desc').value = ''; $('refFile').value = ''; $('refPrev').src = ''; $('refPrev').classList.add('hidden');
+    $('style').selectedIndex = 0; $('bgChoice').selectedIndex = 0; $('bgMode').value = 'green'; $('tol').value = 40; $('tolVal').textContent = '40'; $('imgModel').selectedIndex = 0;
+    $('ideas').innerHTML = ''; $('results').innerHTML = ''; $('cutPreview').innerHTML = '';
+    ['ideaCard', 'resultCard', 'sheetCard', 'packCard'].forEach(id => $(id).classList.add('hidden'));
+    renderProjectMeta(); updateCount();
+  }
+  async function initProjectMemory() {
+    try {
+      await refreshProjectList();
+      const active = activeProjectId();
+      if (active) { const record = await projectDBRequest('get', active); if (record) await restoreProject(record); }
+      else renderProjectMeta();
+    } catch (e) {
+      setProjectStatus('⚠️ 無法啟用專案記憶：' + e.message, 'err');
+    }
+  }
+  $('saveProjectBtn').addEventListener('click', () => saveProject(false));
+  $('loadProjectBtn').addEventListener('click', loadSelectedProject);
+  $('newProjectBtn').addEventListener('click', () => {
+    if (projectId && !confirm('建立新專案？目前專案已保存，不會被刪除。')) return;
+    projectId = null; projectCreatedAt = null; rememberActiveProject(''); clearWorkingState(); $('projectName').value = '新角色專案';
+    setProjectStatus('🆕 已建立空白專案，開始輸入後會自動保存', 'ok');
+  });
+  $('deleteProjectBtn').addEventListener('click', async () => {
+    const id = $('projectList').value || projectId; if (!id) { setProjectStatus('⚠️ 目前沒有可刪除的專案', 'err'); return; }
+    if (!confirm('確定刪除這個角色專案？')) return;
+    try {
+      await projectDBRequest('delete', id);
+      if (id === projectId) { projectId = null; projectCreatedAt = null; rememberActiveProject(''); clearWorkingState(); $('projectName').value = ''; }
+      await refreshProjectList(); setProjectStatus('✅ 專案已刪除', 'ok');
+    } catch (e) { setProjectStatus('❌ 刪除失敗：' + e.message, 'err'); }
+  });
+  ['projectName', 'refType', 'desc', 'style', 'bgChoice', 'bgMode', 'tol', 'imgModel'].forEach(id => {
+    $(id).addEventListener('input', scheduleProjectSave);
+    $(id).addEventListener('change', scheduleProjectSave);
+  });
+
   // ---- 金鑰 ----
   (function () { const k = readStoredKey(); if (k) { $('apiKey').value = k; setSt($('keyStatus'), '✅ 已載入（這個瀏覽器）', 'ok'); } })();
   $('apiKey').addEventListener('input', () => {
@@ -312,6 +529,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     e.stopPropagation(); refDataUrl = null; refMime = null; $('refFile').value = '';
     $('refPrev').src = ''; $('refPrev').classList.add('hidden');
     setSt($('promptStatus'), '已移除參考圖；仍可只用文字產生 Prompt', '');
+    scheduleProjectSave();
   });
   bindDrop('refDrop', 'refFile', f => {
     if (!f.type.startsWith('image/')) { toast('⚠️ 請上傳圖片'); return; }
@@ -319,6 +537,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       refDataUrl = r.result; refMime = f.type;
       const im = $('refPrev'); im.src = r.result; im.classList.remove('hidden');
       setSt($('promptStatus'), '✅ 參考圖已載入，按下方按鈕讓 AI 分析並產生 Prompt', 'ok');
+      scheduleProjectSave();
     }; r.readAsDataURL(f);
   });
 
@@ -366,6 +585,8 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       const txt = parts.map(p => p.text || '').join('\n').trim();
       if (!txt) throw new Error('AI 沒有返回 Prompt');
       $('desc').value = txt;
+      promptHistory.push({ time: Date.now(), text: txt });
+      renderPromptHistory(); scheduleProjectSave();
       setSt($('promptStatus'), '✅ Prompt 已生成並填入下方描述欄位，可再修改', 'ok');
       $('desc').focus();
       $('desc').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -390,6 +611,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       while (arr.length < n) arr.push('表情 ' + (arr.length + 1));
       ideas = arr.slice(0, n); renderIdeas();
       $('ideaCard').classList.remove('hidden'); $('ideaCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      scheduleProjectSave();
       setSt($('mainStatus'), '✅ 點子出爐！可自由改，再按「生成貼圖」', 'ok');
       return true;
     } catch (e) { setSt($('mainStatus'), '❌ 想點子失敗：' + e.message, 'err'); return false; }
@@ -400,14 +622,14 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       const row = document.createElement('div'); row.className = 'idea';
       row.innerHTML = '<span class="h">' + String(i + 1).padStart(2, '0') + '</span><input type="text" value="' +
         t.replace(/"/g, '&quot;') + '"><button class="btn ghost tiny" type="button">🗑️</button>';
-      row.querySelector('input').addEventListener('input', e => ideas[i] = e.target.value);
-      row.querySelector('button').addEventListener('click', () => { ideas.splice(i, 1); renderIdeas(); });
+      row.querySelector('input').addEventListener('input', e => { ideas[i] = e.target.value; scheduleProjectSave(); });
+      row.querySelector('button').addEventListener('click', () => { ideas.splice(i, 1); renderIdeas(); scheduleProjectSave(); });
       box.appendChild(row);
     });
   }
   $('addIdea').addEventListener('click', () => {
     if (ideas.length >= 16) { toast('固定 4×4 最多 16 個點子'); return; }
-    ideas.push(''); renderIdeas();
+    ideas.push(''); renderIdeas(); scheduleProjectSave();
   });
   $('reIdea').addEventListener('click', generateIdeas);
   $('goBtn').addEventListener('click', generateIdeas);
@@ -434,6 +656,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       const inl = ip.inlineData || ip.inline_data;
       await loadInto(s, 'data:' + (inl.mimeType || 'image/png') + ';base64,' + inl.data);
       applyBgOne(s); s.generating = false; render();
+      scheduleProjectSave();
       if (stickers.length === 16 && stickers.every(x => x.out && !x.generating)) { composeSheet(); cutSheet(); }
     } catch (e) { s.err = e.message; s.generating = false; render(); }
   }
@@ -499,7 +722,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
     }
     renderCutResults();
     $('packCard').classList.remove('hidden');
-    updateCount();
+    updateCount(); scheduleProjectSave();
     return true;
   }
 
@@ -522,6 +745,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   $('tol').addEventListener('input', () => $('tolVal').textContent = $('tol').value);
   $('applyBg').addEventListener('click', () => {
     stickers.forEach(applyBgOne); render();
+    scheduleProjectSave();
     if (stickers.length === 16 && stickers.every(s => s.out)) { composeSheet(); cutSheet(); }
   });
   function applyBgOne(s) {
@@ -652,6 +876,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       setSt($('zipStatus'), '🎉 完成！' + chosen.length + ' 張＋main/tab，可去上架', 'ok');
     } catch (e) { setSt($('zipStatus'), '❌ 打包失敗：' + e.message, 'err'); } finally { setTimeout(() => prog.classList.remove('on'), 800); }
   });
+  initProjectMemory();
 })();
 
 </script>
