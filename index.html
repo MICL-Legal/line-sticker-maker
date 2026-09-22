@@ -74,6 +74,9 @@
   .progress.on{display:block;}
   .bar{height:100%;width:0;background:linear-gradient(90deg,#3fd0c9,#a78bfa,#ff8fb1);transition:width .2s;}
   .counter{font-weight:800;font-family:var(--mono);}
+  .sheet-wrap{max-width:620px;margin:12px auto 14px;padding:10px;border-radius:16px;background:var(--soft);border:1px solid var(--line);}
+  #sheetCanvas{display:block;width:100%;height:auto;border-radius:10px;background:conic-gradient(#efe9f6 25%,#fff 0 50%,#efe9f6 0 75%,#fff 0) 0 0/18px 18px;}
+  .workflow-note{background:linear-gradient(90deg,#eafffd,#f7f1ff);border:1px solid #dcd2ef;border-radius:12px;padding:10px 13px;font-size:12.5px;color:#5a5470;margin-bottom:14px;}
   ol.guide{margin:0;padding-left:18px;}ol.guide li{margin:5px 0;font-size:13.5px;}
   footer{text-align:center;color:#9a94b0;font-size:12px;margin-top:24px;}
   a{color:#1fb3ab;font-weight:700;}
@@ -85,42 +88,47 @@
 <div class="wrap">
   <header class="top">
     <h1>🐵 LINE 貼圖製造機</h1>
-    <p class="subtitle">一句話描述 → AI 生一整組 → 每張自由重生/微調 → 打包上架</p>
+    <p class="subtitle">上傳參考圖 → AI 分析 → 生成 16 張 → 固定 4×4 → 切割打包上架</p>
     <div class="privacy"><span>🔒 圖片與金鑰只留在你瀏覽器</span><span>💚 用你自己的 Google 金鑰</span><span>📐 輸出即 LINE 靜態貼圖規格</span></div>
-    <p class="subtitle" style="margin-top:8px">已經在別的 AI 生好一張 3x3 / 4x4 總圖？ <a href="cutter.html">用切割器直接切開打包 →</a></p>
+    <p class="subtitle" style="margin-top:8px">同一個頁面完成從參考圖到 LINE 上架 ZIP，不需要轉換介面。</p>
   </header>
 
   <!-- 主輸入 -->
   <div class="card">
-    <label>🎯 你想參考的類型／風格（選填）</label>
-    <textarea id="refType" class="big-input" style="min-height:72px" placeholder="例如：療癒系手繪童書感、柔和暖色、圓潤角色、表情誇張一點，適合日常聊天；不要複製任何現成角色"></textarea>
-    <div class="row" style="margin-top:8px;align-items:center">
-      <button class="btn pri mini" id="makePrompt" type="button" style="flex:0">✨ AI 幫我整理成 Prompt</button>
-      <div class="status" id="promptStatus" style="margin:0"></div>
-    </div>
-    <p class="hint" style="margin-top:6px">你可以寫風格、色彩、畫面感、參考類型或想模仿的氣氛；AI 會轉成原創、可直接生圖的描述。</p>
+    <div class="workflow-note">🧭 使用方式：先上傳一張你想參考的圖片，按「AI 分析參考圖並產生 Prompt」；再確認 Prompt 和貼圖數量，按生成。完成後系統會自動組成固定 4×4 總圖、在同頁切割，最後下載 LINE 上架 ZIP。</div>
 
-    <label>✏️ 描述你想要的貼圖（越自由越好）</label>
-    <textarea id="desc" class="big-input" placeholder="例如：我家的柴犬 Mochi，米色短毛、療癒風，做一組聊天常用的可愛貼圖，要有各種心情"></textarea>
-
-    <details style="margin-top:10px">
-      <summary>🖼️ （選填）上傳角色參考圖 — 有的話 AI 會照著畫</summary>
+    <details open>
+      <summary>1️⃣ 上傳參考圖（選填）</summary>
       <div class="inner">
         <div id="refDrop">
           <div style="font-size:26px">🖼️</div>
-          <div style="font-weight:700;font-size:13px">拖曳或點此上傳（可不傳，純文字也能生）</div>
+          <div style="font-weight:700;font-size:13px">拖曳或點此上傳一張參考圖</div>
+          <div class="hint">AI 會分析角色外觀、色彩、線條、材質、構圖與整體氣氛，轉成原創 Prompt。</div>
           <button class="btn ghost mini" id="pickRef" type="button" style="margin-top:8px">選擇圖片</button>
+          <button class="btn ghost mini" id="clearRef" type="button" style="margin-top:8px">移除圖片</button>
           <input id="refFile" type="file" accept="image/*" class="hidden">
-          <img id="refPrev" class="hidden" alt="參考">
+          <img id="refPrev" class="hidden" alt="參考圖預覽">
         </div>
       </div>
     </details>
+
+    <label style="margin-top:14px">2️⃣ 補充你想要的類型／風格（選填）</label>
+    <textarea id="refType" class="big-input" style="min-height:72px" placeholder="例如：療癒系手繪童書感、柔和暖色、圓潤角色、表情誇張一點，適合日常聊天；不要複製任何現成角色"></textarea>
+    <div class="row" style="margin-top:8px;align-items:center">
+      <button class="btn pri mini" id="makePrompt" type="button" style="flex:0">🔎 AI 分析參考圖並產生 Prompt</button>
+      <div class="status" id="promptStatus" style="margin:0"></div>
+    </div>
+    <p class="hint" style="margin-top:6px">沒有參考圖也可以只用文字；如果有參考圖，圖片會和文字一起送給 Google AI 做分析。</p>
+
+    <label>3️⃣ AI 產生的完整 Prompt（可再修改）</label>
+    <textarea id="desc" class="big-input" placeholder="例如：我家的柴犬 Mochi，米色短毛、療癒風，做一組聊天常用的可愛貼圖，要有各種心情"></textarea>
+    <p class="hint">這裡會放 AI 整理後的原創生成描述；你仍然可以在生成前自行修改。</p>
 
     <details style="margin-top:10px">
       <summary>⚙️ 進階設定（不動也可以，都有預設）</summary>
       <div class="inner">
         <div class="row">
-          <div><label>張數</label><select id="count"><option>8</option><option selected>16</option><option>24</option><option>32</option><option>40</option></select></div>
+          <div><label>張數（固定 4×4）</label><select id="count"><option selected value="16">16 張</option></select></div>
           <div><label>風格</label><select id="style">
             <option value="沿用參考圖畫風，不要擅自更改">跟參考圖一致</option>
             <option value="可愛精緻 Q 版 chibi">Q 版可愛</option>
@@ -175,23 +183,35 @@
 
   <!-- 結果 -->
   <div class="card hidden" id="resultCard">
-    <h2>🖼️ 貼圖（每張可 🔁重生 / ✏️改 / 🗑️刪）</h2>
+    <h2>🖼️ AI 生成的 16 張貼圖（可逐張重生／修改）</h2>
     <div class="tools">
       <label>去背：</label>
       <select id="bgMode" style="width:auto"><option value="green">綠幕</option><option value="white">白底</option><option value="none">不去背</option></select>
       <label style="margin-left:6px">容差 <span id="tolVal" class="counter">40</span></label>
       <input id="tol" type="range" min="10" max="120" value="40">
       <button class="btn ghost tiny" id="applyBg" type="button">套用去背</button>
-      <button class="btn ghost tiny" id="addSt" type="button">➕ 加一張</button>
+      <span class="hint" style="margin:0">完成後會自動排成固定 4×4 總圖</span>
     </div>
     <div class="results" id="results"></div>
   </div>
 
+  <!-- 固定 4x4 總圖與內建 Cutter -->
+  <div class="card hidden" id="sheetCard">
+    <h2>🧩 固定 4×4 總圖</h2>
+    <p class="hint">這張總圖由 16 張貼圖在瀏覽器本機組成，尺寸固定為 2048×2048，每格 512×512；不是再交給 AI 猜格線。</p>
+    <div class="sheet-wrap"><canvas id="sheetCanvas" width="2048" height="2048" aria-label="4×4 貼圖總圖"></canvas></div>
+    <div class="status" id="sheetStatus" style="text-align:center"></div>
+    <div class="row" style="justify-content:center;margin-top:8px">
+      <button class="btn go" id="cutSheet" type="button" style="flex:0">✂️ 用內建 Cutter 切割 4×4 總圖</button>
+    </div>
+  </div>
+
   <!-- 打包 -->
   <div class="card hidden" id="packCard">
-    <h2>📦 打包上架</h2>
-    <div class="tools"><span>已選 <span id="selCount" class="counter">0</span> 張</span><span id="selOk" style="font-weight:800"></span></div>
-    <div class="row" style="justify-content:center"><button class="btn go" id="zipBtn" type="button" style="flex:0">📦 產生 LINE 上架 ZIP（含 main/tab）</button></div>
+    <h2>✂️ Cutter 完成 → 📦 打包上架</h2>
+    <div class="tools"><span>已切出 <span id="selCount" class="counter">0</span> 張</span><span id="selOk" style="font-weight:800"></span></div>
+    <div class="results" id="cutPreview"></div>
+    <div class="row" style="justify-content:center;margin-top:14px"><button class="btn go" id="zipBtn" type="button" style="flex:0" disabled>📦 產生 LINE 上架 ZIP（含 main/tab）</button></div>
     <div class="progress" id="zipProg"><div class="bar" id="zipBar"></div></div>
     <div class="status" id="zipStatus" style="text-align:center"></div>
     <details style="margin-top:6px"><summary>📖 怎麼上架 LINE</summary>
@@ -203,7 +223,7 @@
     </details>
   </div>
 
-  <footer>🔒 全程本機 · 金鑰只發給 Google · 免費開源 · 可放你自己的 GitHub Pages 分享</footer>
+  <footer>🔒 圖片與金鑰只留在你的瀏覽器 · 金鑰只發給 Google · Google API 用量依官方方案計費</footer>
 </div>
 <div id="toast"></div>
 
@@ -228,7 +248,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const $ = id => document.getElementById(id);
   const KEY_LS = 'line_maker_gemini_key';
   const GREEN = [0, 177, 64], WHITE = [255, 255, 255];
-  const VALID_COUNTS = [8, 16, 24, 32, 40];
+  const VALID_COUNTS = [16];
+  const GRID = 4, SHEET_CELL = 512, SHEET_SIZE = GRID * SHEET_CELL;
   const MAX_BYTES = 1024 * 1024;
   const TXT_MODEL = 'gemini-2.5-flash';
   const imgModel = () => ($('imgModel') && $('imgModel').value) || 'gemini-3.1-flash-image';
@@ -237,6 +258,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   let refDataUrl = null, refMime = null;
   let ideas = [];
   let stickers = [];   // { idea, raw, out, sel, err }
+  let cutStickers = []; // 固定 4×4 總圖經內建 Cutter 切出的 16 格
 
   const toast = m => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2600); };
   const setSt = (el, msg, cls) => { el.className = 'status' + (cls ? ' ' + cls : ''); el.textContent = msg; };
@@ -286,9 +308,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   $('pickRef').addEventListener('click', () => $('refFile').click());
   $('refDrop').addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') $('refFile').click(); });
+  $('clearRef').addEventListener('click', e => {
+    e.stopPropagation(); refDataUrl = null; refMime = null; $('refFile').value = '';
+    $('refPrev').src = ''; $('refPrev').classList.add('hidden');
+    setSt($('promptStatus'), '已移除參考圖；仍可只用文字產生 Prompt', '');
+  });
   bindDrop('refDrop', 'refFile', f => {
     if (!f.type.startsWith('image/')) { toast('⚠️ 請上傳圖片'); return; }
-    const r = new FileReader(); r.onload = () => { refDataUrl = r.result; refMime = f.type; const im = $('refPrev'); im.src = r.result; im.classList.remove('hidden'); }; r.readAsDataURL(f);
+    const r = new FileReader(); r.onload = () => {
+      refDataUrl = r.result; refMime = f.type;
+      const im = $('refPrev'); im.src = r.result; im.classList.remove('hidden');
+      setSt($('promptStatus'), '✅ 參考圖已載入，按下方按鈕讓 AI 分析並產生 Prompt', 'ok');
+    }; r.readAsDataURL(f);
   });
 
   // ---- Gemini 呼叫 ----
@@ -307,12 +338,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (!getKey()) { setSt($('promptStatus'), '⚠️ 請先在「設定金鑰」填入 Google 金鑰', 'err'); return; }
     const ref = $('refType').value.trim();
     const existing = $('desc').value.trim();
-    if (!ref && !existing) {
-      setSt($('promptStatus'), '⚠️ 請先輸入參考類型，或先寫一點貼圖描述', 'err');
+    if (!ref && !existing && !refDataUrl) {
+      setSt($('promptStatus'), '⚠️ 請先上傳參考圖，或輸入一點貼圖描述', 'err');
       return;
     }
     setSt($('promptStatus'), '💡 AI 正在整理 Prompt…', 'busy');
-    const prompt = `你是專業的 LINE 靜態貼圖 Prompt 設計師。請把使用者提供的參考方向整理成一段「可以直接交給影像生成模型」的繁體中文 Prompt。
+    const prompt = `你是專業的 LINE 靜態貼圖 Prompt 設計師。請把使用者提供的參考圖片與文字方向，整理成一段「可以直接交給影像生成模型」的繁體中文 Prompt。
+
+${refDataUrl ? '我有附上一張參考圖片。請先分析圖片中的角色外觀、比例、色彩、線條、材質、構圖、背景處理與整體氣氛，再把這些視覺特徵轉成原創角色與原創畫面描述。' : '沒有附參考圖片，請只根據文字方向整理。'}
 
 參考類型／風格：
 ${ref || '（未提供，請依既有描述發展合適風格）'}
@@ -329,7 +362,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
 6. 不要自行發明貼圖台詞；台詞會在下一步逐張規劃。
 `;
     try {
-      const parts = await callGemini(TXT_MODEL, [{ text: prompt }], false);
+      const parts = await callGemini(TXT_MODEL, [{ text: prompt }, ...refPart()], false);
       const txt = parts.map(p => p.text || '').join('\n').trim();
       if (!txt) throw new Error('AI 沒有返回 Prompt');
       $('desc').value = txt;
@@ -372,19 +405,28 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       box.appendChild(row);
     });
   }
-  $('addIdea').addEventListener('click', () => { ideas.push(''); renderIdeas(); });
+  $('addIdea').addEventListener('click', () => {
+    if (ideas.length >= 16) { toast('固定 4×4 最多 16 個點子'); return; }
+    ideas.push(''); renderIdeas();
+  });
   $('reIdea').addEventListener('click', generateIdeas);
   $('goBtn').addEventListener('click', generateIdeas);
 
   // ---- 依點子逐張生成 ----
   function stickerPrompt(idea) {
     const style = $('style').value, bgWord = $('bgChoice').value === 'green' ? '純綠幕（chroma green #00b140）' : '純白色';
-    const base = refDataUrl ? '以我提供的參考圖為人物角色，' : '';
+    const base = refDataUrl ? '以我提供的參考圖分析出的角色視覺特徵為參考，維持角色一致但必須是原創，不複製第三方角色、Logo 或商標，' : '';
     return `${base}為「${$('desc').value.trim()}」這組 LINE 貼圖畫其中一張。這張的表情/動作：「${idea}」。`
       + `風格：${style}。${bgWord}背景、畫面無邊框、只畫單一角色單一表情、角色置中且完整不被裁切，適合當聊天貼圖。輸出單一張正方形圖片。`;
   }
   async function genOne(i) {
-    const s = stickers[i]; s.err = false; s.generating = true; render();
+    const s = stickers[i];
+    if (s.out) {
+      cutStickers = [];
+      $('sheetCard').classList.add('hidden'); $('packCard').classList.add('hidden');
+      $('cutPreview').innerHTML = '';
+    }
+    s.err = false; s.generating = true; render();
     try {
       const parts = await callGemini(imgModel(), [{ text: stickerPrompt(s.idea) }, ...refPart()], true);
       const ip = parts.find(p => (p.inlineData && p.inlineData.data) || (p.inline_data && p.inline_data.data));
@@ -392,6 +434,7 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
       const inl = ip.inlineData || ip.inline_data;
       await loadInto(s, 'data:' + (inl.mimeType || 'image/png') + ';base64,' + inl.data);
       applyBgOne(s); s.generating = false; render();
+      if (stickers.length === 16 && stickers.every(x => x.out && !x.generating)) { composeSheet(); cutSheet(); }
     } catch (e) { s.err = e.message; s.generating = false; render(); }
   }
   function loadInto(s, src) {
@@ -403,24 +446,84 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   }
   async function genImgs() {
     if (!ideas.length) { toast('⚠️ 先產生點子'); return; }
+    while (ideas.length < 16) ideas.push('表情 ' + (ideas.length + 1));
+    ideas = ideas.slice(0, 16);
     stickers = ideas.map(idea => ({ idea, raw: null, out: null, sel: true, generating: false, err: false }));
-    $('resultCard').classList.remove('hidden'); $('packCard').classList.remove('hidden'); render();
+    cutStickers = [];
+    $('resultCard').classList.remove('hidden'); $('sheetCard').classList.add('hidden'); $('packCard').classList.add('hidden');
+    $('cutPreview').innerHTML = ''; render();
     const prog = $('mainProg'), bar = $('mainBar'); prog.classList.add('on');
     for (let i = 0; i < stickers.length; i++) {
       setSt($('mainStatus'), '🎨 生成中 ' + (i + 1) + '/' + stickers.length + '…', 'busy');
       bar.style.width = (100 * i / stickers.length) + '%';
       await genOne(i);
-      if (i < stickers.length - 1) await sleep(1300);  // 尊重免費速率限制
+      if (i < stickers.length - 1) await sleep(1300);  // 尊重 API 速率限制
     }
-    bar.style.width = '100%'; setSt($('mainStatus'), '🎉 全部生成完成！可單張重生/微調，再打包', 'ok');
+    bar.style.width = '100%';
+    if (stickers.length === 16 && stickers.every(s => s.out)) {
+      composeSheet(); cutSheet();
+      setSt($('mainStatus'), '🎉 16 張完成！已自動組成 4×4 總圖並切割，可往下打包', 'ok');
+    } else {
+      setSt($('mainStatus'), '⚠️ 有貼圖尚未生成成功，請重生失敗的圖片後再組成 4×4', 'err');
+    }
     setTimeout(() => prog.classList.remove('on'), 800);
   }
+
+  // ---- 固定 4×4 總圖 ----
+  function composeSheet() {
+    const ready = stickers.filter(s => s.out);
+    if (ready.length !== 16) {
+      setSt($('sheetStatus'), '⚠️ 需要完整 16 張已生成貼圖才能組成 4×4', 'err');
+      return false;
+    }
+    const sheet = $('sheetCanvas'); sheet.width = SHEET_SIZE; sheet.height = SHEET_SIZE;
+    const ctx = sheet.getContext('2d'); ctx.clearRect(0, 0, SHEET_SIZE, SHEET_SIZE);
+    ready.slice(0, 16).forEach((s, i) => {
+      const cell = fitToLine(s.out, SHEET_CELL, SHEET_CELL);
+      ctx.drawImage(cell, (i % GRID) * SHEET_CELL, Math.floor(i / GRID) * SHEET_CELL);
+    });
+    $('sheetCard').classList.remove('hidden');
+    setSt($('sheetStatus'), '✅ 4×4 總圖已完成（2048×2048；每格 512×512）', 'ok');
+    return true;
+  }
+
+  // ---- 內建 Cutter：從 4×4 總圖重新切出 16 格 ----
+  function cutSheet() {
+    const sheet = $('sheetCanvas');
+    if (!sheet || sheet.width !== SHEET_SIZE || sheet.height !== SHEET_SIZE) return false;
+    const ctx = sheet.getContext('2d'); cutStickers = [];
+    for (let i = 0; i < 16; i++) {
+      const cv = document.createElement('canvas'); cv.width = SHEET_CELL; cv.height = SHEET_CELL;
+      cv.getContext('2d').drawImage(sheet, (i % GRID) * SHEET_CELL, Math.floor(i / GRID) * SHEET_CELL, SHEET_CELL, SHEET_CELL, 0, 0, SHEET_CELL, SHEET_CELL);
+      cutStickers.push({ out: cv, idea: stickers[i] ? stickers[i].idea : '貼圖 ' + (i + 1), name: 'LINE貼圖_' + String(i + 1).padStart(2, '0') + '.png' });
+    }
+    renderCutResults();
+    $('packCard').classList.remove('hidden');
+    updateCount();
+    return true;
+  }
+
+  function renderCutResults() {
+    const box = $('cutPreview'); box.innerHTML = '';
+    cutStickers.forEach((s, i) => {
+      const card = document.createElement('div'); card.className = 'st';
+      const img = document.createElement('img'); img.className = 'cv'; img.alt = s.name; img.src = s.out.toDataURL('image/png');
+      const cap = document.createElement('div'); cap.className = 'cap'; cap.textContent = String(i + 1).padStart(2, '0') + ' · ' + (s.idea || '貼圖');
+      card.append(img, cap); box.appendChild(card);
+    });
+    setSt($('zipStatus'), '✅ 4×4 已切成 16 格，現在可以產生上架 ZIP', 'ok');
+  }
+
+  $('cutSheet').addEventListener('click', () => { if (composeSheet()) cutSheet(); });
   $('genImgs').addEventListener('click', genImgs);
   updateCount();   // 初始化：0 張 -> 打包鈕鎖住，避免誤按
 
   // ---- 去背 ----
   $('tol').addEventListener('input', () => $('tolVal').textContent = $('tol').value);
-  $('applyBg').addEventListener('click', () => { stickers.forEach(applyBgOne); render(); });
+  $('applyBg').addEventListener('click', () => {
+    stickers.forEach(applyBgOne); render();
+    if (stickers.length === 16 && stickers.every(s => s.out)) { composeSheet(); cutSheet(); }
+  });
   function applyBgOne(s) {
     if (!s.raw) return;
     const mode = $('bgMode').value, tol = +$('tol').value;
@@ -444,26 +547,22 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   function render() {
     const box = $('results'); box.innerHTML = '';
     stickers.forEach((s, i) => {
-      const div = document.createElement('div'); div.className = 'st' + (s.sel ? ' sel' : '');
+      const div = document.createElement('div'); div.className = 'st';
       const img = s.out ? '<img class="cv" src="' + s.out.toDataURL('image/png') + '">' : '<div class="cv"></div>';
       const spin = s.generating ? '<div class="spin">生成中…</div>' : (s.err ? '<div class="spin" style="color:#c15a4a">❌ ' + s.err + '</div>' : '');
-      div.innerHTML = '<input class="pick" type="checkbox"' + (s.sel ? ' checked' : '') + '>' + img + spin +
+      div.innerHTML = img + spin +
         '<div class="cap">' + (s.idea || '—') + '</div>' +
         '<div class="acts"><button class="btn ghost tiny" data-a="re">🔁</button>' +
-        '<button class="btn ghost tiny" data-a="ed">✏️</button>' +
-        '<button class="btn ghost tiny" data-a="del">🗑️</button></div>';
-      div.querySelector('.pick').addEventListener('change', e => { s.sel = e.target.checked; div.classList.toggle('sel', s.sel); updateCount(); });
+        '<button class="btn ghost tiny" data-a="ed">✏️</button></div>';
       div.querySelector('[data-a=re]').addEventListener('click', () => genOne(i));
       div.querySelector('[data-a=ed]').addEventListener('click', () => { const v = prompt('這張要改成什麼表情/動作？', s.idea); if (v != null) { s.idea = v.trim(); genOne(i); } });
-      div.querySelector('[data-a=del]').addEventListener('click', () => { stickers.splice(i, 1); render(); });
       box.appendChild(div);
     });
     updateCount();
   }
-  $('addSt').addEventListener('click', () => { const v = prompt('新貼圖的表情/動作？', ''); if (v) { stickers.push({ idea: v.trim(), raw: null, out: null, sel: true, generating: false, err: false }); render(); genOne(stickers.length - 1); } });
   function updateCount() {
-    const n = stickers.filter(s => s.sel && s.out).length; $('selCount').textContent = n;
-    const ok = VALID_COUNTS.includes(n); $('selOk').textContent = ok ? '✅ 符合 LINE' : '⚠️ 需 8/16/24/32/40 張（且已生成）';
+    const n = cutStickers.length; $('selCount').textContent = n;
+    const ok = VALID_COUNTS.includes(n); $('selOk').textContent = ok ? '✅ 固定 4×4，符合 16 張' : '⚠️ 請先完成 4×4 Cutter';
     $('selOk').style.color = ok ? 'var(--ok)' : 'var(--danger)'; $('zipBtn').disabled = !ok;
   }
 
@@ -511,8 +610,8 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
   }
 
   $('zipBtn').addEventListener('click', async () => {
-    const chosen = stickers.filter(s => s.sel && s.out);
-    if (!VALID_COUNTS.includes(chosen.length)) { toast('⚠️ 請選 8/16/24/32/40 張'); return; }
+    const chosen = cutStickers.slice();
+    if (!VALID_COUNTS.includes(chosen.length)) { toast('⚠️ 請先完成固定 4×4 Cutter'); return; }
     const prog = $('zipProg'), bar = $('zipBar'); prog.classList.add('on'); bar.style.width = '5%'; setSt($('zipStatus'), '打包中…', 'busy');
     try {
       const zip = new JSZip();
@@ -531,7 +630,8 @@ ${existing || '（未提供，請從參考方向建立一個原創貼圖主題�
         '產生時間：' + new Date().toLocaleString('zh-TW'),
         '',
         '[本 ZIP 已自動保證]',
-        '  張數 ' + chosen.length + ' 張（合法值 8/16/24/32/40）',
+        '  張數 ' + chosen.length + ' 張（固定 4×4，合法值 16）',
+        '  流程：16 張 → 2048×2048 4×4 總圖 → 內建 Cutter 切回 16 格',
         '  貼圖尺寸 370x320（含安全邊距，偶數）',
         '  main.png 240x240 / tab.png 96x74',
         '  透明背景 RGBA PNG',

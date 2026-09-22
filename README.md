@@ -2,24 +2,24 @@
 
 免安裝、免後端、免註冊的 LINE 靜態貼圖產線。打開網頁就能用，圖片與金鑰只留在你自己的瀏覽器。
 
-可以先輸入想參考的類型／風格，按「AI 幫我整理成 Prompt」；AI 會把風格、色彩、畫面感與既有描述整理成一段可直接生圖的 Prompt，自動填入下方描述欄位。Prompt 仍可手動修改，再開始生成。
+主流程是單頁完成：上傳參考圖後，AI 會分析角色外觀、色彩、線條、材質、構圖與整體氣氛，整理成可直接生圖的原創 Prompt；接著生成固定 16 張、組成 4×4 總圖、用內建 Cutter 切回 16 格，最後打包成 LINE 上架 ZIP。Prompt 仍可手動修改。
 
 **線上使用：** https://micl-legal.github.io/line-sticker-maker/
 
-## 兩條路徑
+## 單頁完整流程
 
 | 路徑 | 適合誰 | 需要金鑰嗎 |
 |---|---|---|
-| [製造機 `index.html`](https://micl-legal.github.io/line-sticker-maker/) | 只有一個想法或一張角色照 | 要（自己的 Google AI Studio 金鑰；生圖模型依 Google 方案計費） |
-| [切割器 `cutter.html`](https://micl-legal.github.io/line-sticker-maker/cutter.html) | 已在 ChatGPT / Gemini 生好一張總圖 | 不要，純本機 |
+| [製造機 `index.html`](https://micl-legal.github.io/line-sticker-maker/) | 從參考圖到上架 ZIP 的完整流程 | 要（自己的 Google AI Studio 金鑰；生圖模型依 Google 方案計費） |
+| [舊版獨立切割器 `cutter.html`](https://micl-legal.github.io/line-sticker-maker/cutter.html) | 已經有外部 AI 產生的 4×4 總圖 | 不要，純本機 |
 
-兩條路徑最後都輸出**同一份可直接上架的 ZIP**。
+一般使用不需要離開主頁；獨立切割器保留給既有總圖的額外入口。
 
 ## 輸出規格（LINE Creators Market 靜態貼圖）
 
 | 項目 | 規格 | 程式是否自動保證 |
 |---|---|---|
-| 張數 | 8 / 16 / 24 / 32 / 40 | 是，不合法不給打包 |
+| 張數 | 固定 16 張（4×4） | 是，不完整不給打包 |
 | 貼圖尺寸 | 370 x 320 以內、偶數、透明 PNG | 是，含 6% 安全邊距置中 |
 | main.png | 240 x 240 | 是 |
 | tab.png | 96 x 74 | 是 |
@@ -28,7 +28,7 @@
 
 ZIP 內另附 `上架檢查清單.txt`，分「程式已保證」與「你要自己確認」兩區。
 
-## 怎麼拿免費金鑰
+## 怎麼取得 Google AI Studio 金鑰
 
 1. 開 https://aistudio.google.com/apikey
 2. 建立 API key，複製 `AIza...`
